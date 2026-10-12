@@ -1,0 +1,81 @@
+package com.bidaide.gh
+
+/** An entry of the GitHub notifications inbox. */
+data class GhNotification(
+    val id: String,
+    val unread: Boolean,
+    val reason: String,
+    val updatedAt: String?,
+    val title: String,
+    /** PullRequest, Issue, Commit, Release, Discussion, CheckSuite... */
+    val type: String,
+    /** API URL of the subject; missing for some types. */
+    val subjectUrl: String?,
+    val repository: String,
+) {
+    /** Issue or pull request number, when the subject is one. */
+    val number: Int? get() = subjectUrl?.substringAfterLast('/')?.toIntOrNull()?.takeIf { type == "PullRequest" || type == "Issue" }
+
+    val webUrl: String get() = GhNotifications.webUrl(subjectUrl, repository)
+
+    val reasonLabel: String get() = GhNotifications.REASONS[reason] ?: reason.replace('_', ' ')
+}
+
+object GhNotifications {
+    val REASONS = mapOf(
+        "assign" to "te la asignaron", "author" to "eres el autor", "comment" to "comentaste", "ci_activity" to "actividad de CI",
+        "invitation" to "invitación", "manual" to "suscripción manual", "mention" to "te mencionaron",
+        "review_requested" to "te piden review", "security_alert" to "alerta de seguridad", "state_change" to "cambiaste su estado",
+        "subscribed" to "sigues el repositorio", "team_mention" to "mencionaron a tu equipo", "approval_requested" to "piden tu aprobación",
+    )
+
+    /** [thisRepo] limits the inbox to the repository gh runs in; [all] includes already read notifications. */
+    fun list(thisRepo: Boolean, all: Boolean) =
+        listOf("api", "${if (thisRepo) "repos/{owner}/{repo}/" else ""}notifications?per_page=50&all=$all")
+
+    fun thread(id: String) = listOf("api", "notifications/threads/$id")
+
+    fun markRead(id: String) = listOf("api", "--method", "PATCH", "notifications/threads/$id")
+
+    /** Removes it from the inbox for good ("done" on github.com). */
+    fun done(id: String) = listOf("api", "--method", "DELETE", "notifications/threads/$id")
+
+    fun unsubscribe(id: String) = listOf("api", "--method", "DELETE", "notifications/threads/$id/subscription")
+
+    fun markAllRead(thisRepo: Boolean) =
+        listOf("api", "--method", "PUT", "${if (thisRepo) "repos/{owner}/{repo}/" else ""}notifications", "-F", "read=true")
+
+    fun parseList(json: String): List<GhNotification> =
+        com.google.gson.JsonParser.parseString(json).asJsonArray.filter { it.isJsonObject }.map { parse(it.asJsonObject) }
+
+    fun parse(json: String): GhNotification = parse(parseObject(json))
+
+    private fun parse(n: com.google.gson.JsonObject): GhNotification {
+        val subject = n.obj("subject")
+        return GhNotification(
+            id = n.string("id").orEmpty(),
+            unread = n.bool("unread"),
+            reason = n.string("reason").orEmpty(),
+            updatedAt = n.string("updated_at"),
+            title = subject?.string("title").orEmpty(),
+            type = subject?.string("type").orEmpty(),
+            subjectUrl = subject?.string("url"),
+            repository = n.obj("repository")?.string("full_name").orEmpty(),
+        )
+    }
+
+    private val API_SUBJECT = Regex("""^https://api\.github\.com/repos/([^/]+/[^/]+)/(pulls|issues|commits|releases)/(.+)$""")
+
+    /** The notification only carries API URLs; this is the page a person would open. Falls back to the repository. */
+    fun webUrl(subjectUrl: String?, repository: String): String {
+        val match = subjectUrl?.let(API_SUBJECT::find) ?: return "https://github.com/$repository"
+        val (repo, kind, rest) = match.destructured
+        return when (kind) {
+            "pulls" -> "https://github.com/$repo/pull/$rest"
+            "issues" -> "https://github.com/$repo/issues/$rest"
+            "commits" -> "https://github.com/$repo/commit/$rest"
+            // The API id of a release is not the tag its page is addressed by.
+            else -> "https://github.com/$repo/releases"
+        }
+    }
+}

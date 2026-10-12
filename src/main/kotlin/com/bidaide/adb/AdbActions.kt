@@ -1,0 +1,370 @@
+package com.bidaide.adb
+
+import com.android.ddmlib.IDevice
+import com.bidaide.Notifier
+import com.bidaide.settings.BidaideSettings
+import com.intellij.ide.actions.RevealFileAction
+import com.intellij.ide.util.PropertiesComponent
+import com.intellij.notification.NotificationAction
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.Task
+import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBTextField
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.panel
+import java.io.File
+import javax.swing.JComponent
+
+private val LOG = logger<AdbTasks>()
+
+/** Runs ADB work in the background on one or several devices and reports each result as a notification. */
+object AdbTasks {
+    fun run(project: Project, title: String, devices: List<IDevice>, packageName: String?, work: (AdbContext) -> String) {
+        object : Task.Backgroundable(project, "ADB: $title", false) {
+            override fun run(indicator: ProgressIndicator) {
+                for (device in devices) {
+                    val context = AdbContext(project, device, packageName)
+                    try {
+                        report(project, "${work(context)} — ${AdbTargetResolver.deviceLabel(device)}", context.resultFile)
+                    } catch (e: Exception) {
+                        LOG.info("ADB task '$title' failed", e)
+                        Notifier.error(project, "ADB: $title", "${e.message ?: e.javaClass.simpleName} — ${AdbTargetResolver.deviceLabel(device)}")
+                    }
+                }
+            }
+        }.queue()
+    }
+
+    /** Runs [work] in the background and hands its result to [onSuccess] on the EDT; failures become notifications. */
+    fun <T> fetch(project: Project, title: String, work: () -> T, onSuccess: (T) -> Unit) {
+        object : Task.Backgroundable(project, "ADB: $title", false) {
+            private var result: Result<T>? = null
+
+            override fun run(indicator: ProgressIndicator) {
+                result = runCatching(work)
+            }
+
+            override fun onFinished() {
+                result?.onSuccess(onSuccess)?.onFailure {
+                    LOG.info("ADB task '$title' failed", it)
+                    Notifier.error(project, "ADB: $title", it.message ?: it.javaClass.simpleName)
+                }
+            }
+        }.queue()
+    }
+
+    private fun report(project: Project, message: String, file: File?) {
+        val notification = NotificationGroupManager.getInstance().getNotificationGroup("Bidaide")
+            .createNotification("ADB", message, NotificationType.INFORMATION)
+        if (file != null) {
+            notification.addAction(NotificationAction.createSimple(RevealFileAction.getActionName()) { RevealFileAction.openFile(file) })
+        }
+        notification.notify(project)
+    }
+}
+
+abstract class AdbBaseAction : AnAction(), DumbAware {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabledAndVisible = e.project != null
+    }
+}
+
+abstract class AdbOperationAction(private val operation: AdbOperation) : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        AdbTargetResolver.resolve(project, operation.needsPackage) { devices, packageName ->
+            AdbTasks.run(project, operation.label, devices, packageName, operation.run)
+        }
+    }
+}
+
+class AdbUninstallAction : AdbOperationAction(AdbOperation.UNINSTALL)
+class AdbKillAction : AdbOperationAction(AdbOperation.KILL)
+class AdbStartAction : AdbOperationAction(AdbOperation.START)
+class AdbRestartAction : AdbOperationAction(AdbOperation.RESTART)
+class AdbClearDataAction : AdbOperationAction(AdbOperation.CLEAR_DATA)
+class AdbClearDataRestartAction : AdbOperationAction(AdbOperation.CLEAR_DATA_RESTART)
+class AdbClearCacheAction : AdbOperationAction(AdbOperation.CLEAR_CACHE)
+class AdbReinstallAction : AdbOperationAction(AdbOperation.REINSTALL)
+class AdbStartDebugAction : AdbOperationAction(AdbOperation.START_DEBUG)
+class AdbRestartDebugAction : AdbOperationAction(AdbOperation.RESTART_DEBUG)
+class AdbClearDataRestartDebugAction : AdbOperationAction(AdbOperation.CLEAR_DATA_RESTART_DEBUG)
+class AdbGrantPermissionsAction : AdbOperationAction(AdbOperation.GRANT_PERMISSIONS)
+class AdbRevokePermissionsAction : AdbOperationAction(AdbOperation.REVOKE_PERMISSIONS)
+class AdbRevokePermissionsRestartAction : AdbOperationAction(AdbOperation.REVOKE_PERMISSIONS_RESTART)
+class AdbWifiOnAction : AdbOperationAction(AdbOperation.WIFI_ON)
+class AdbWifiOffAction : AdbOperationAction(AdbOperation.WIFI_OFF)
+class AdbMobileDataOnAction : AdbOperationAction(AdbOperation.MOBILE_DATA_ON)
+class AdbMobileDataOffAction : AdbOperationAction(AdbOperation.MOBILE_DATA_OFF)
+class AdbScreenshotAction : AdbOperationAction(AdbOperation.SCREENSHOT)
+class AdbRecordAction : AdbOperationAction(AdbOperation.RECORD_TOGGLE)
+class AdbDarkModeAction : AdbOperationAction(AdbOperation.DARK_MODE)
+class AdbFontScaleAction : AdbOperationAction(AdbOperation.FONT_SCALE)
+class AdbAnimationsAction : AdbOperationAction(AdbOperation.ANIMATIONS)
+class AdbDontKeepActivitiesAction : AdbOperationAction(AdbOperation.DONT_KEEP_ACTIVITIES)
+class AdbShowTouchesAction : AdbOperationAction(AdbOperation.SHOW_TOUCHES)
+class AdbAirplaneModeAction : AdbOperationAction(AdbOperation.AIRPLANE_MODE)
+class AdbBatteryLowAction : AdbOperationAction(AdbOperation.BATTERY_LOW)
+class AdbDozeAction : AdbOperationAction(AdbOperation.DOZE_ON)
+class AdbPowerResetAction : AdbOperationAction(AdbOperation.POWER_RESET)
+class AdbKillInBackgroundAction : AdbOperationAction(AdbOperation.KILL_IN_BACKGROUND)
+class AdbRotateAction : AdbOperationAction(AdbOperation.ROTATE)
+class AdbAutoRotateAction : AdbOperationAction(AdbOperation.AUTO_ROTATE)
+class AdbSlowNetworkAction : AdbOperationAction(AdbOperation.SLOW_NETWORK)
+class AdbNormalNetworkAction : AdbOperationAction(AdbOperation.NORMAL_NETWORK)
+class AdbPullDataAction : AdbOperationAction(AdbOperation.PULL_DATA)
+class AdbBackupAction : AdbOperationAction(AdbOperation.BACKUP)
+
+/** Recently used values of a dialog field, most recent first, stored per project. */
+internal class History(private val project: Project, private val key: String) {
+    fun values(): List<String> = PropertiesComponent.getInstance(project).getList(key).orEmpty()
+
+    fun remember(value: String) {
+        PropertiesComponent.getInstance(project).setList(key, (listOf(value) + values()).distinct().take(MAX))
+    }
+
+    private companion object {
+        const val MAX = 15
+    }
+}
+
+/** Launches a URL or custom-scheme link on the device, keeping a history of the ones used. */
+class AdbDeepLinkAction : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val history = History(project, "Bidaide.Adb.DeepLinks")
+        val combo = ComboBox(history.values().toTypedArray()).apply { isEditable = true }
+        val onlyApp = JBCheckBox("Abrir solo con la app del proyecto", true)
+        val dialog = object : DialogWrapper(project) {
+            init {
+                title = "Abrir deep link"
+                setOKButtonText("Abrir")
+                init()
+            }
+
+            override fun createCenterPanel(): JComponent = panel {
+                row("URL:") { cell(combo).align(AlignX.FILL).comment("https://..., miapp://ruta, etc.") }
+                row { cell(onlyApp) }
+            }
+
+            override fun getPreferredFocusedComponent() = combo
+
+            override fun doValidate(): ValidationInfo? =
+                if (combo.editor.item?.toString().isNullOrBlank()) ValidationInfo("Escribe una URL", combo) else null
+        }
+        if (!dialog.showAndGet()) return
+        val url = combo.editor.item.toString().trim()
+        history.remember(url)
+        AdbTargetResolver.resolve(project, onlyApp.isSelected) { devices, packageName ->
+            AdbTasks.run(project, "Deep link", devices, packageName) { ctx ->
+                AdbShell.openDeepLink(ctx.device, url, packageName)
+                "Abierto $url"
+            }
+        }
+    }
+}
+
+/** Per-app language (Android 13+). */
+class AdbAppLocaleAction : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val locales = Messages.showInputDialog(
+            project, "Idioma de la app (p. ej. es-ES, en-US, ar). Vacío = idioma del sistema.", "Idioma de la app", null,
+        ) ?: return
+        AdbTargetResolver.resolve(project, needsPackage = true) { devices, packageName ->
+            AdbTasks.run(project, "Idioma de la app", devices, packageName) { ctx ->
+                AdbShell.setAppLocale(ctx.device, ctx.packageName, locales)
+                if (locales.isBlank()) "${ctx.packageName} vuelve al idioma del sistema" else "${ctx.packageName} en ${locales.trim()}"
+            }
+        }
+    }
+}
+
+/** Restores a snapshot made with "save app state". */
+class AdbRestoreAction : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        AdbTargetResolver.resolve(project, needsPackage = true) { devices, packageName ->
+            val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("tar").withTitle("Estado guardado de $packageName")
+            val start = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(AdbFiles.backupDir(packageName!!))
+            val archive = FileChooser.chooseFile(descriptor, project, start) ?: return@resolve
+            AdbTasks.run(project, "Restaurar estado", devices, packageName) { ctx ->
+                AdbFiles.restore(ctx.device, ctx.packageName, VfsUtilCore.virtualToIoFile(archive))
+                "Estado de ${ctx.packageName} restaurado desde ${archive.name}"
+            }
+        }
+    }
+}
+
+/** `adb reverse`: lets the device reach a server running on this machine through localhost. */
+class AdbReverseAction : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val history = History(project, "Bidaide.Adb.ReversePorts")
+        val input = Messages.showInputDialog(
+            project, "Puerto, o «dispositivo:local» si son distintos (p. ej. 8080 o 3000:8080). Vacío = quitar todos.",
+            "adb reverse", null, history.values().firstOrNull().orEmpty(), null,
+        ) ?: return
+        val ports = input.trim().split(':').map { it.trim() }
+        if (input.isNotBlank() && (ports.size > 2 || ports.any { it.toIntOrNull() == null })) {
+            Notifier.warn(project, "ADB", "Puerto no válido: $input")
+            return
+        }
+        if (input.isNotBlank()) history.remember(input.trim())
+        AdbTargetResolver.resolve(project, needsPackage = false) { devices, _ ->
+            AdbTasks.run(project, "adb reverse", devices, null) { ctx ->
+                if (input.isBlank()) {
+                    AdbFiles.adb(project, "-s", ctx.device.serialNumber, "reverse", "--remove-all")
+                    "Redirecciones de puertos eliminadas"
+                } else {
+                    val devicePort = ports.first()
+                    val localPort = ports.last()
+                    AdbFiles.adb(project, "-s", ctx.device.serialNumber, "reverse", "tcp:$devicePort", "tcp:$localPort")
+                    "localhost:$devicePort del dispositivo → localhost:$localPort de este equipo"
+                }
+            }
+        }
+    }
+}
+
+/** Wireless debugging: pairs with the code shown on the device and connects. */
+class AdbPairAction : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val pairAddress = JBTextField()
+        val code = JBTextField()
+        val connectAddress = JBTextField()
+        val dialog = object : DialogWrapper(project) {
+            init {
+                title = "Emparejar dispositivo por Wi-Fi"
+                setOKButtonText("Conectar")
+                init()
+            }
+
+            override fun createCenterPanel(): JComponent = panel {
+                row { comment("En el dispositivo: Opciones de desarrollador → Depuración inalámbrica → Vincular con código.") }
+                row("IP:puerto de vinculación:") { cell(pairAddress).align(AlignX.FILL) }
+                row("Código:") { cell(code).align(AlignX.FILL).comment("Deja ambos vacíos si ya está vinculado.") }
+                row("IP:puerto de conexión:") {
+                    cell(connectAddress).align(AlignX.FILL).comment("El de la pantalla principal de Depuración inalámbrica.")
+                }
+            }
+
+            override fun doValidate(): ValidationInfo? = when {
+                pairAddress.text.isBlank() != code.text.isBlank() -> ValidationInfo("Indica dirección y código de vinculación", pairAddress)
+                pairAddress.text.isBlank() && connectAddress.text.isBlank() -> ValidationInfo("Indica al menos una dirección", connectAddress)
+                else -> null
+            }
+        }
+        if (!dialog.showAndGet()) return
+        object : Task.Backgroundable(project, "ADB: emparejando por Wi-Fi", false) {
+            override fun run(indicator: ProgressIndicator) {
+                try {
+                    val messages = ArrayList<String>()
+                    if (pairAddress.text.isNotBlank()) messages += AdbFiles.adb(project, "pair", pairAddress.text.trim(), code.text.trim())
+                    if (connectAddress.text.isNotBlank()) messages += AdbFiles.adb(project, "connect", connectAddress.text.trim())
+                    Notifier.info(project, "ADB", messages.joinToString("<br>"))
+                } catch (ex: Exception) {
+                    Notifier.error(project, "ADB: emparejar por Wi-Fi", ex.message ?: ex.javaClass.simpleName)
+                }
+            }
+        }.queue()
+    }
+}
+
+/** A user-defined shell command from the settings. */
+class CustomAdbCommand(val name: String, val command: String) {
+    val needsPackage: Boolean get() = PACKAGE in command
+
+    fun resolve(packageName: String?): String = command.replace(PACKAGE, packageName.orEmpty())
+
+    companion object {
+        const val PACKAGE = "{package}"
+
+        /** One command per line as `Name = command`; blank lines and lines starting with # are skipped. */
+        fun parse(text: String): List<CustomAdbCommand> = text.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && '=' in it }
+            .map { CustomAdbCommand(it.substringBefore('=').trim(), it.substringAfter('=').trim()) }
+            .filter { it.name.isNotEmpty() && it.command.isNotEmpty() }
+            .toList()
+    }
+}
+
+/** The commands the user defined in Settings, listed inline in the ADB popup. */
+class AdbCustomCommandsGroup : ActionGroup(), DumbAware {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+
+    override fun getChildren(e: AnActionEvent?): Array<AnAction> =
+        CustomAdbCommand.parse(BidaideSettings.getInstance().customAdbCommands).map { command ->
+            object : AdbBaseAction() {
+                init {
+                    templatePresentation.text = "ADB: ${command.name}"
+                    templatePresentation.description = command.command
+                }
+
+                override fun actionPerformed(e: AnActionEvent) {
+                    val project = e.project ?: return
+                    AdbTargetResolver.resolve(project, command.needsPackage) { devices, packageName ->
+                        AdbTasks.run(project, command.name, devices, packageName) { ctx ->
+                            val output = AdbShell.run(ctx.device, command.resolve(packageName), timeoutSeconds = 60)
+                            "${command.name}: ${output.ifEmpty { "hecho" }.take(MAX_OUTPUT)}"
+                        }
+                    }
+                }
+            }
+        }.toTypedArray()
+
+    private companion object {
+        const val MAX_OUTPUT = 1500
+    }
+}
+
+/** Forgets the remembered device/app so the next operation asks again. */
+class AdbForgetSelectionAction : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        project.service<AdbSelectionMemory>().apply {
+            deviceSerial = null
+            packageName = null
+        }
+        Notifier.info(project, "ADB", "La próxima operación preguntará dispositivo y aplicación.")
+    }
+}
+
+/** Shows every ADB operation in a speed-searchable popup. */
+class AdbPopupAction : AdbBaseAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val group = ActionManager.getInstance().getAction(OPERATIONS_GROUP_ID) as ActionGroup
+        JBPopupFactory.getInstance()
+            .createActionGroupPopup("ADB — Bidaide", group, e.dataContext, JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, true)
+            .showCenteredInCurrentWindow(project)
+    }
+
+    private companion object {
+        const val OPERATIONS_GROUP_ID = "Bidaide.Adb.Operations"
+    }
+}

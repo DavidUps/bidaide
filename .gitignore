@@ -1,0 +1,14 @@
+.gradle/
+.idea/
+.intellijPlatform/
+.kotlin/
+build/
+*.iml
+local.properties
+
+# Handoff bundle, not part of the project
+bidaide-fuentes.zip
+.DS_Store
+
+# Local handoff notes: machine paths and private project names
+CONTEXTO.md

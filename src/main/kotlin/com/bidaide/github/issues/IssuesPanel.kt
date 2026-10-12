@@ -1,0 +1,123 @@
+package com.bidaide.github.issues
+
+import com.bidaide.Notifier
+import com.bidaide.gh.GhCli
+import com.bidaide.gh.GhCommands
+import com.bidaide.gh.GhCommands.StateFilter
+import com.bidaide.gh.GhIssue
+import com.bidaide.gh.GhJson
+import com.bidaide.gh.GhRepoContext
+import com.bidaide.gh.GhTimeline
+import com.bidaide.gh.display
+import com.bidaide.github.ui.GhListDetailPanel
+import com.bidaide.github.ui.Html
+import com.bidaide.github.ui.Html.esc
+import com.bidaide.github.ui.Markdown
+import com.bidaide.github.ui.MetadataEditor
+import com.bidaide.github.ui.TextPromptDialog
+import com.bidaide.github.ui.TitleBodyDialog
+import com.intellij.icons.AllIcons
+import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.ui.ColoredListCellRenderer
+import com.intellij.ui.SimpleTextAttributes
+import java.io.File
+import javax.swing.JButton
+
+class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
+    project, "issue",
+    filters = listOf(StateFilter.OPEN, StateFilter.CLOSED, StateFilter.ALL).map { FilterOption(it.label, it.name) },
+    scopes = GhCommands.ISSUE_SCOPES.map { FilterOption(it.first, it.second) },
+) {
+    override fun listArgs(filter: String, scope: String, search: String) =
+        GhCommands.issueList(StateFilter.valueOf(filter), GhCommands.combineSearch(scope, search))
+
+    override fun parseList(json: String) = GhJson.issues(json)
+    override fun detailArgs(item: GhIssue) = GhCommands.issueView(item.number)
+    override fun parseDetail(json: String) = GhJson.issue(json)
+    override fun id(item: GhIssue) = item.number.toLong()
+
+    override fun fetchDetail(workDir: File, item: GhIssue): GhIssue {
+        val issue = super.fetchDetail(workDir, item)
+        // The feed is a nicety: without it the plain comment list is shown.
+        return issue.copy(timeline = runCatching { GhTimeline.parse(GhCli.run(workDir, GhTimeline.args(issue.number))) }.getOrNull())
+    }
+
+    override fun renderCell(renderer: ColoredListCellRenderer<GhIssue>, item: GhIssue) {
+        renderer.icon = if (item.isOpen) AllIcons.General.TodoDefault else AllIcons.Actions.Checked
+        renderer.append("#${item.number} ", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+        renderer.append(item.title)
+        val labels = item.labels.orEmpty().joinToString(", ") { it.name }
+        renderer.append("  ${item.author.display()}${if (labels.isEmpty()) "" else " · $labels"}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+    }
+
+    override fun detailHtml(item: GhIssue): String = buildString {
+        append("<h2>${esc(item.title)} <font color=\"gray\">#${item.number}</font></h2>")
+        append("<p>${esc(item.state)} · <b>${esc(item.author.display())}</b> · ${Html.date(item.updatedAt)} · ${Html.link(item.url, "GitHub")}</p>")
+        val meta = listOfNotNull(
+            item.assignees?.takeIf { it.isNotEmpty() }?.let { "Asignada a: ${esc(it.joinToString())}" },
+            item.milestone?.title?.let { "Milestone: ${esc(it)}" },
+            Html.labels(item.labels).takeIf { it.isNotBlank() },
+        )
+        if (meta.isNotEmpty()) append("<p>${meta.joinToString(" · ")}</p>")
+        append(Markdown.toHtml(item.body).ifEmpty { "<p><i>Sin descripción.</i></p>" })
+        val timeline = item.timeline
+        append(if (timeline != null) Html.section("Actividad", Html.timeline(timeline)) else Html.section("Comentarios", Html.comments(item.comments)))
+    }
+
+    override fun detailButtons(item: GhIssue): List<JButton> = buildList {
+        val n = item.number
+        add(button("Comentar") {
+            val dialog = TextPromptDialog(project, "Comentar issue #$n", "Comentar", required = true)
+            if (dialog.showAndGet()) runAndReload("Comentando issue #$n", GhCommands.issueComment(n, dialog.text), "Comentario añadido a #$n")
+        })
+        if (item.isOpen) add(button("Crear rama") { develop(item) })
+        add(button("Editar...") {
+            MetadataEditor.edit(project, "issue", n, item.labels, item.assignees, item.milestone?.title) { command ->
+                runAndReload("Editando issue #$n", command, "Issue #$n actualizada")
+            }
+        })
+        if (item.isOpen) {
+            add(button("Cerrar") { runAndReload("Cerrando issue #$n", GhCommands.issueSetOpen(n, false), "Issue #$n cerrada") })
+        } else {
+            add(button("Reabrir") { runAndReload("Reabriendo issue #$n", GhCommands.issueSetOpen(n, true), "Issue #$n reabierta") })
+        }
+        add(button("Abrir en navegador") { BrowserUtil.browse(item.url) })
+    }
+
+    /** Creates a branch linked to the issue on GitHub and checks it out locally. */
+    private fun develop(issue: GhIssue) {
+        GhCli.async(
+            project, "Creando rama para issue #${issue.number}",
+            work = {
+                GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.issueDevelop(issue.number))
+                GhRepoContext.repository(project)?.let {
+                    it.update()
+                    VfsUtil.markDirtyAndRefresh(false, true, true, it.root)
+                    it.currentBranchName
+                }
+            },
+        ) { branch ->
+            Notifier.info(project, "GitHub", "Rama «${branch ?: "nueva"}» creada y enlazada a la issue #${issue.number}")
+        }
+    }
+
+    override fun create() = create(project, "", "") { reload() }
+
+    companion object {
+        /** Shows the "new issue" form, optionally prefilled, and creates the issue. */
+        fun create(project: Project, title: String, body: String, onCreated: () -> Unit = {}) {
+            val dialog = TitleBodyDialog(project, "Nueva issue", "Crear", title, body).apply { build() }
+            if (!dialog.showAndGet()) return
+            GhCli.async(
+                project, "Creando issue",
+                work = { GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.issueCreate(dialog.itemTitle, dialog.body)).trim() },
+            ) { output ->
+                val url = output.lines().lastOrNull().orEmpty()
+                Notifier.info(project, "Issue creada", Html.link(url, url))
+                onCreated()
+            }
+        }
+    }
+}
