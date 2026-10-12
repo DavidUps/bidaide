@@ -14,6 +14,7 @@
 <h3 align="center">Revisa pull requests y maneja tu dispositivo sin salir de Android Studio.</h3>
 
 <p align="center">
+  <a href="https://youtu.be/2NdpDKRjDK8"><b>▶ Vídeo</b></a> ·
   <a href="#-instalación"><b>Instalar</b></a> ·
   <a href="#-github">GitHub</a> ·
   <a href="#-adb">ADB</a> ·
@@ -35,6 +36,18 @@ Sin tokens que configurar: el plugin usa la sesión de `gh`. Sin navegador: todo
 
 > [!NOTE]
 > Versión 0.1.0, en beta. Funciona, pero es joven: si algo falla, abre una issue.
+
+## 🎬 Míralo en acción
+
+<p align="center">
+  <a href="https://youtu.be/2NdpDKRjDK8" title="Ver el vídeo de Bidaide en YouTube">
+    <img src="docs/video.svg" alt="Vídeo de presentación de Bidaide: pulsa para verlo en YouTube" width="88%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://youtu.be/2NdpDKRjDK8"><img alt="Ver en YouTube" src="https://img.shields.io/badge/Ver%20en%20YouTube-ff0000?style=for-the-badge&logo=youtube&logoColor=white"></a>
+</p>
 
 ## ✨ Lo más destacado
 
