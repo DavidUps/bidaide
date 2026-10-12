@@ -42,6 +42,8 @@ Sin tokens que configurar: el plugin usa la sesión de `gh`. Sin navegador: todo
 | 🔍 **Revisión de PR en el IDE** | El diff de Android Studio con los hilos bajo cada línea. Comenta, sugiere cambios, resuelve y envía la review. |
 | ✅ **Archivos vistos** | La misma casilla *Viewed* de github.com, sincronizada. |
 | 🚦 **PR de tu rama en la barra de estado** | Checks, estado de review e hilos abiertos de un vistazo. |
+| 🛡️ **¿Puedo fusionar?** | Qué exige la rama base y qué te falta: aprobaciones, checks obligatorios, conversaciones. |
+| 🗂️ **Tablero de issues** | Columnas por label, asignado, milestone o estado, con arrastrar y soltar. |
 | 📦 **Del CI al dispositivo** | Descarga el APK de un run o de una release y lo instala. |
 | ⌨️ **ADB con un atajo** | Más de 50 operaciones en un popup con búsqueda. |
 | 🗄️ **Datos de la app** | Edita SharedPreferences y explora las bases de datos con SQL. |
@@ -83,6 +85,8 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
   búsqueda con la sintaxis de GitHub.
 - **Crear**: título y cuerpo salen de tus commits o de `PULL_REQUEST_TEMPLATE.md`. Reviewers, asignados, labels,
   borrador. Hace push de la rama antes.
+- **Requisitos para fusionar**: una lista con ✓ y ✗ de lo que exige la rama base. Aprobaciones que faltan, checks
+  obligatorios, conversaciones sin resolver, rama al día, conflictos. Lee rulesets y protección de rama.
 - **Detalle** con la actividad completa en orden: comentarios, reviews, commits, labels, cierres.
 - **Acciones**: checkout, aprobar, pedir cambios, comentar, marcar lista, actualizar rama (merge o rebase),
   merge con auto-merge opcional, editar labels / asignados / reviewers / milestone, cerrar y reabrir.
@@ -106,14 +110,18 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
 
 ### Mientras programas
 
-- **Barra de estado**: la PR de tu rama con checks, review e hilos abiertos. Clic para acciones.
+- **Barra de estado**: la PR de tu rama con checks, review e hilos abiertos. Clic para acciones, entre ellas
+  **¿Cumple los requisitos de merge?**
 - **Margen del editor**: un globo en las líneas que tienen conversación.
 - **Avisos**: te piden review, aprueban o piden cambios en tu PR, tus checks fallan o pasan.
 
 ### Issues
 
 Listar, crear, comentar, cerrar, reabrir y editar labels / asignados / milestone. **Crear rama** enlazada a la
-issue. Desde el editor, **Crear issue desde selección**: un `TODO` pasa a ser el título y el cuerpo lleva el
+issue.
+
+**Tablero**: el botón *Ver como tablero* cambia la lista por columnas de tarjetas, agrupadas por label, asignado,
+milestone o estado. Arrastra una tarjeta a otra columna y la issue cambia en GitHub. Desde el editor, **Crear issue desde selección**: un `TODO` pasa a ser el título y el cuerpo lleva el
 enlace permanente al código.
 
 ### Actions
@@ -132,7 +140,7 @@ Runs de tu rama o de todas, con refresco automático mientras algo corre.
 | **Releases** | Crear (tag, notas automáticas, borrador, pre-release), publicar, borrar, descargar archivos. |
 | **Bandeja** | Notificaciones de este repositorio o de todos. Marcar leída, archivar, dejar de seguir. |
 | **Discussions** | Listar, leer con respuestas, comentar, crear. |
-| **Projects** | Tarjetas por estado, añadir issue o PR, mover de columna. |
+| **Projects** | Tablero con una columna por estado; arrastra tarjetas entre columnas, añade issues o PR. |
 
 En el **editor** (clic derecho → *Bidaide GitHub*): abrir en GitHub, copiar enlace permanente, crear gist y
 **¿Qué PR trajo esta línea?**
@@ -217,6 +225,14 @@ No. El commit se crea en GitHub a través de la API, igual que el botón de la w
 ni cambios en tu copia de trabajo. Si tienes esa rama en local, quedará un commit por detrás hasta que hagas
 pull. Antes de crear el commit el plugin pide confirmación, y se niega si el archivo cambió en la rama desde que
 abriste la revisión.
+</details>
+
+<details>
+<summary><b>«Requisitos para fusionar» dice que no pudo leer las reglas</b></summary>
+
+GitHub no expone los rulesets de repositorios privados en planes gratuitos. El resultado sigue siendo válido:
+usa lo que GitHub indica en la propia PR (decisión de review, qué checks son obligatorios, estado de merge), pero
+no puede decirte cuántas aprobaciones se exigen.
 </details>
 
 <details>

@@ -7,6 +7,7 @@ import com.bidaide.gh.GhCommands.MergeMethod
 import com.bidaide.gh.GhCommands.ReviewKind
 import com.bidaide.gh.GhCommands.StateFilter
 import com.bidaide.gh.GhJson
+import com.bidaide.gh.GhMergeRules
 import com.bidaide.gh.GhPullRequest
 import com.bidaide.gh.GhRepoContext
 import com.bidaide.gh.GhTimeline
@@ -48,7 +49,10 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
     override fun fetchDetail(workDir: File, item: GhPullRequest): GhPullRequest {
         val pr = super.fetchDetail(workDir, item)
         // The feed is a nicety: without it reviews, comments and commits are listed separately.
-        return pr.copy(timeline = runCatching { GhTimeline.parse(GhCli.run(workDir, GhTimeline.args(pr.number))) }.getOrNull())
+        return pr.copy(
+            timeline = runCatching { GhTimeline.parse(GhCli.run(workDir, GhTimeline.args(pr.number))) }.getOrNull(),
+            mergeStatus = if (pr.isOpen) runCatching { GhMergeRules.load(workDir, pr.number) }.getOrNull() else null,
+        )
     }
 
     override fun renderCell(renderer: ColoredListCellRenderer<GhPullRequest>, item: GhPullRequest) {

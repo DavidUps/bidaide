@@ -11,6 +11,7 @@ import com.bidaide.gh.GhTimeline
 import com.bidaide.gh.display
 import com.bidaide.github.ui.GhListDetailPanel
 import com.bidaide.github.ui.Html
+import com.bidaide.github.ui.KanbanBoard
 import com.bidaide.github.ui.Html.esc
 import com.bidaide.github.ui.Markdown
 import com.bidaide.github.ui.MetadataEditor
@@ -18,6 +19,14 @@ import com.bidaide.github.ui.TextPromptDialog
 import com.bidaide.github.ui.TitleBodyDialog
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
+import com.intellij.ide.util.PropertiesComponent
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.ToggleAction
+import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.DumbAwareAction
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.ColoredListCellRenderer
@@ -37,6 +46,81 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
     override fun detailArgs(item: GhIssue) = GhCommands.issueView(item.number)
     override fun parseDetail(json: String) = GhJson.issue(json)
     override fun id(item: GhIssue) = item.number.toLong()
+
+    // --- Board view: the same issues as columns of cards, grouped by label, assignee, milestone or state ---
+
+    private val properties get() = PropertiesComponent.getInstance(project)
+    private var boardMode = false
+    private var groupBy = IssueBoard.GroupBy.LABEL
+    private var issues: List<GhIssue> = emptyList()
+
+    /** Open milestones of the repository, so the milestone board has a column for each even when empty. */
+    @Volatile private var milestones: List<String> = emptyList()
+
+    private val board = KanbanBoard(
+        onSelect = { card -> select(card.id.toLong()) },
+        onOpen = { card -> (card.payload as? GhIssue)?.let { BrowserUtil.browse(it.url) } },
+        onMove = { card, from, to ->
+            val number = card.id.toInt()
+            runAndReload("Moviendo issue #$number", IssueBoard.moveCommand(number, groupBy, from, to), IssueBoard.moveDescription(number, groupBy, to))
+        },
+    )
+
+    init {
+        groupBy = IssueBoard.GroupBy.entries.firstOrNull { it.name == properties.getValue(GROUP_KEY) } ?: IssueBoard.GroupBy.LABEL
+        boardMode = properties.getBoolean(BOARD_KEY, false)
+        if (boardMode) showBoard(board)
+    }
+
+    override fun extraActions(): List<AnAction> = listOf(
+        object : ToggleAction("Ver como tablero", "Columnas de tarjetas que se arrastran, como en GitHub Projects", AllIcons.Actions.SplitVertically), DumbAware {
+            override fun getActionUpdateThread() = ActionUpdateThread.EDT
+            override fun isSelected(e: AnActionEvent) = boardMode
+            override fun setSelected(e: AnActionEvent, state: Boolean) {
+                boardMode = state
+                properties.setValue(BOARD_KEY, state, false)
+                showBoard(if (state) board else null)
+                if (state) refreshBoard()
+            }
+        },
+        object : DumbAwareAction("Agrupar tablero por...", null, AllIcons.Actions.GroupBy) {
+            override fun getActionUpdateThread() = ActionUpdateThread.EDT
+            override fun update(e: AnActionEvent) {
+                e.presentation.isEnabled = boardMode
+            }
+
+            override fun actionPerformed(e: AnActionEvent) {
+                JBPopupFactory.getInstance().createPopupChooserBuilder(IssueBoard.GroupBy.entries)
+                    .setTitle("Columnas del tablero")
+                    .setItemChosenCallback {
+                        groupBy = it
+                        properties.setValue(GROUP_KEY, it.name)
+                        // Milestone columns need the repository's milestones, which only a reload fetches.
+                        if (it == IssueBoard.GroupBy.MILESTONE) reload() else refreshBoard()
+                    }
+                    .createPopup()
+                    .showInCenterOf(this@IssuesPanel)
+            }
+        },
+    )
+
+    override fun fetchList(workDir: File, filter: String, scope: String, search: String): List<GhIssue> {
+        if (boardMode && groupBy == IssueBoard.GroupBy.MILESTONE) {
+            milestones = runCatching { GhCli.run(workDir, GhCommands.milestoneList()).lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList() }
+                .getOrDefault(emptyList())
+        }
+        return super.fetchList(workDir, filter, scope, search)
+    }
+
+    override fun onItemsLoaded(items: List<GhIssue>) {
+        issues = items
+        if (boardMode) refreshBoard()
+    }
+
+    private fun refreshBoard() {
+        val known = if (groupBy == IssueBoard.GroupBy.MILESTONE) milestones else emptyList()
+        board.show(IssueBoard.columns(issues, groupBy, known), "Sin issues con este filtro")
+    }
 
     override fun fetchDetail(workDir: File, item: GhIssue): GhIssue {
         val issue = super.fetchDetail(workDir, item)
@@ -106,6 +190,9 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
     override fun create() = create(project, "", "") { reload() }
 
     companion object {
+        private const val BOARD_KEY = "Bidaide.Issues.board"
+        private const val GROUP_KEY = "Bidaide.Issues.groupBy"
+
         /** Shows the "new issue" form, optionally prefilled, and creates the issue. */
         fun create(project: Project, title: String, body: String, onCreated: () -> Unit = {}) {
             val dialog = TitleBodyDialog(project, "Nueva issue", "Crear", title, body).apply { build() }

@@ -10,6 +10,7 @@ import com.bidaide.gh.GhRepoContext
 import com.bidaide.github.ui.GhListDetailPanel
 import com.bidaide.github.ui.Html
 import com.bidaide.github.ui.Html.esc
+import com.bidaide.github.ui.KanbanBoard
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.project.Project
@@ -19,6 +20,7 @@ import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import java.io.File
 import javax.swing.JButton
+import javax.swing.JComponent
 
 /** Project boards of the repository owner: cards grouped by status, add a card, move a card. */
 class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "project", filters = emptyList(), createText = null) {
@@ -30,8 +32,60 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
         GhProjects.parseList(GhCli.run(workDir, GhProjects.list(owner)), owner).filter { needle.isEmpty() || it.title.contains(needle, true) }
     }
 
-    override fun fetchDetail(workDir: File, item: GhProject): GhProject =
-        scoped { item.copy(items = GhProjects.parseItems(GhCli.run(workDir, GhProjects.items(item.number, item.owner)))) }
+    override fun fetchDetail(workDir: File, item: GhProject): GhProject = scoped {
+        item.copy(
+            items = GhProjects.parseItems(GhCli.run(workDir, GhProjects.items(item.number, item.owner))),
+            // Without the field the cards are still shown, in the order their statuses appear; they just cannot be dragged.
+            statusField = runCatching { GhProjects.parseStatusField(GhCli.run(workDir, GhProjects.fields(item.number, item.owner))) }.getOrNull(),
+        )
+    }
+
+    // --- The board: one column per status, cards dragged between them ---
+
+    private var shown: GhProject? = null
+
+    private val board by lazy {
+        KanbanBoard(
+            onSelect = {},
+            onOpen = { card -> (card.payload as? GhProjectItem)?.url?.let(BrowserUtil::browse) },
+            onMove = { card, _, to -> dropped(card.payload as? GhProjectItem, to) },
+        )
+    }
+
+    override fun detailComponent(item: GhProject): JComponent {
+        shown = item
+        board.show(columns(item), "Este proyecto no tiene tarjetas")
+        return board
+    }
+
+    private fun columns(project: GhProject): List<KanbanBoard.Column> {
+        val items = project.items.orEmpty()
+        val statuses = (project.statusField?.options?.map { it.name }.orEmpty() + items.map { it.status }).distinct()
+            // "No status" goes first, as on GitHub, and only when something is in it.
+            .sortedBy { if (it == GhProjects.NO_STATUS) 0 else 1 }
+            .filter { it != GhProjects.NO_STATUS || items.any { item -> item.status == it } }
+        return statuses.map { status ->
+            KanbanBoard.Column(status, status, items.filter { it.status == status }.map { item ->
+                val kind = when (item.type) {
+                    "PullRequest" -> "PR"
+                    "Issue" -> "issue"
+                    else -> "borrador"
+                }
+                KanbanBoard.Card(item.id, item.toString(), listOfNotNull(kind, item.repository).joinToString(" · "), item)
+            })
+        }
+    }
+
+    private fun dropped(card: GhProjectItem?, status: String) {
+        val project = shown ?: return
+        val field = project.statusField
+        val option = field?.options?.firstOrNull { it.name == status }
+        if (card == null || field == null || option == null) {
+            Notifier.warn(this.project, "GitHub", "No se puede mover a «$status»: no es una opción del campo de estado del proyecto.")
+            return
+        }
+        runAndReload("Moviendo tarjeta", GhProjects.moveItem(project.id, card.id, field.id, option.id), "«${card.title.take(60)}» movida a ${option.name}")
+    }
 
     /** `gh project` fails with a cryptic message when the token lacks the scope; say what to do instead. */
     private fun <R> scoped(work: () -> R): R = try {

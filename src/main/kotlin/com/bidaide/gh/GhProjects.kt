@@ -14,6 +14,8 @@ data class GhProject(
     val itemCount: Int,
     val owner: String,
     val items: List<GhProjectItem>? = null,
+    /** The single-select field the board is grouped by; null when unknown or the project has none. */
+    val statusField: GhProjectField? = null,
 )
 
 class GhProjectOption(val id: String, val name: String) {

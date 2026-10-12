@@ -1,6 +1,10 @@
 package com.bidaide.github.current
 
+import com.bidaide.gh.GhCli
+import com.bidaide.gh.GhMergeRules
 import com.bidaide.gh.GhPullRequest
+import com.bidaide.gh.GhRepoContext
+import com.bidaide.github.pr.PullRequestHtml
 import com.bidaide.github.pr.PullRequestActions
 import com.bidaide.github.review.PrReviewDiff
 import com.intellij.icons.AllIcons
@@ -11,6 +15,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.wm.StatusBar
@@ -55,6 +60,7 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
     override fun getPopup(): JBPopup? {
         val pr = service.pullRequest ?: return null
         val group = DefaultActionGroup(
+            action("¿Cumple los requisitos de merge?") { showMergeStatus(pr) },
             action("Revisar cambios") { PrReviewDiff.open(project, pr) },
             action("Probar en dispositivo") { PullRequestActions.checkoutAndRun(project, pr) },
             action("Ver en Bidaide") { ToolWindowManager.getInstance(project).getToolWindow("Bidaide")?.activate(null) },
@@ -65,6 +71,20 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
         return JBPopupFactory.getInstance().createActionGroupPopup(
             "PR #${pr.number}: ${pr.title.take(60)}", group, context, JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, false,
         )
+    }
+
+    private fun showMergeStatus(pr: GhPullRequest) {
+        GhCli.async(
+            project, "Comprobando requisitos de PR #${pr.number}",
+            work = { GhMergeRules.load(GhRepoContext.requireWorkDir(project), pr.number) },
+        ) { status ->
+            val html = "<html>${PullRequestHtml.mergeStatus(status)}</html>"
+            when {
+                status.failing.isNotEmpty() -> Messages.showErrorDialog(project, html, "PR #${pr.number} → ${pr.baseRefName}")
+                status.pending.isNotEmpty() -> Messages.showWarningDialog(project, html, "PR #${pr.number} → ${pr.baseRefName}")
+                else -> Messages.showInfoMessage(project, html, "PR #${pr.number} → ${pr.baseRefName}")
+            }
+        }
     }
 
     private fun action(text: String, run: () -> Unit) = object : DumbAwareAction(text) {

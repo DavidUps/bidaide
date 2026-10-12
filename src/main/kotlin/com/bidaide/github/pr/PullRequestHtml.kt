@@ -1,5 +1,6 @@
 package com.bidaide.github.pr
 
+import com.bidaide.gh.GhMergeStatus
 import com.bidaide.gh.GhPullRequest
 import com.bidaide.gh.display
 import com.bidaide.github.ui.Html
@@ -22,6 +23,7 @@ object PullRequestHtml {
             Html.labels(pr.labels).takeIf { it.isNotBlank() },
         )
         if (meta.isNotEmpty()) append("<p>${meta.joinToString(" · ")}</p>")
+        pr.mergeStatus?.let { append(mergeStatus(it)) }
         append(Markdown.toHtml(pr.body).ifEmpty { "<p><i>Sin descripción.</i></p>" })
 
         append(Html.section("Checks", pr.statusCheckRollup.orEmpty().joinToString("") { check ->
@@ -48,6 +50,16 @@ object PullRequestHtml {
         append(Html.section("Archivos", pr.files.orEmpty().joinToString("") {
             "<div><code>${esc(it.path)}</code> <font color=\"green\">+${it.additions}</font> <font color=\"red\">−${it.deletions}</font></div>"
         }))
+    }
+
+    /** The checklist of what the base branch demands before merging. */
+    fun mergeStatus(status: GhMergeStatus): String = buildString {
+        val color = if (status.failing.isNotEmpty()) "red" else if (status.pending.isNotEmpty()) "#b08800" else "green"
+        append("<h3>Requisitos para fusionar: <font color=\"$color\">${esc(status.verdict)}</font></h3>")
+        for (requirement in status.requirements) {
+            append("<div><font color=\"${requirement.state.color}\"><b>${requirement.state.symbol}</b></font> ")
+            append("<b>${esc(requirement.label)}</b>: ${esc(requirement.detail)}</div>")
+        }
     }
 
     private fun stateLabel(pr: GhPullRequest) = if (pr.isDraft && pr.isOpen) "DRAFT" else pr.state

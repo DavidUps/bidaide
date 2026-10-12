@@ -76,6 +76,8 @@ data class GhPullRequest(
     val milestone: GhMilestone? = null,
     /** Not part of the gh JSON: filled in separately from [GhTimeline]. */
     @Transient val timeline: List<GhTimelineEvent>? = null,
+    /** Not part of the gh JSON: the merge checklist from [GhMergeRules], for open pull requests. */
+    @Transient val mergeStatus: GhMergeStatus? = null,
 ) {
     val checks: List<GhCheck> get() = statusCheckRollup.orEmpty()
     val checksFailed: Boolean get() = checks.any { it.failed }

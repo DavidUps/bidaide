@@ -31,6 +31,7 @@ import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.io.File
 import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JEditorPane
 import javax.swing.JList
 import javax.swing.JPanel
@@ -68,6 +69,14 @@ abstract class GhListDetailPanel<T : Any>(
     }
     private val buttons = JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4)))
 
+    private val detail = JPanel(BorderLayout())
+    private val detailScroll = JBScrollPane(detailPane)
+    private val listScroll = JBScrollPane(list)
+    private val splitter = OnePixelSplitter(false, "Bidaide.$noun.splitter", 0.4f)
+
+    /** What currently fills the detail area instead of the HTML pane, if [detailComponent] provided something. */
+    private var customDetail: JComponent? = null
+
     /** Bumped on every detail request so a slow response for a previous selection is dropped. */
     private var detailRequest = 0
 
@@ -101,6 +110,28 @@ abstract class GhListDetailPanel<T : Any>(
     protected abstract fun detailHtml(item: T): String
     protected abstract fun detailButtons(item: T): List<JButton>
     protected open fun create() {}
+
+    /** Called on the EDT with the freshly loaded items, before the selection is restored. */
+    protected open fun onItemsLoaded(items: List<T>) {}
+
+    /** A component to show for [item] instead of the HTML of [detailHtml]; null (the default) keeps the HTML. */
+    protected open fun detailComponent(item: T): JComponent? = null
+
+    /**
+     * Swaps the list for [board] (stacked above the detail, since a board needs the width), or back to the list
+     * with null. The hidden list still drives the detail: see [select].
+     */
+    protected fun showBoard(board: JComponent?) {
+        splitter.orientation = board != null
+        splitter.firstComponent = board ?: listScroll
+        splitter.proportion = if (board != null) 0.6f else 0.4f
+    }
+
+    /** Selects the item with this id, which loads its detail. */
+    protected fun select(id: Long) {
+        val index = model.items.indexOfFirst { id(it) == id }
+        if (index >= 0) list.selectedIndex = index
+    }
 
     /** Milliseconds until the list reloads by itself given what it shows now, or null for no auto-refresh. */
     protected open fun autoRefreshMillis(items: List<T>): Int? = null
@@ -161,14 +192,10 @@ abstract class GhListDetailPanel<T : Any>(
                 add(stateCombo)
             }, BorderLayout.EAST)
         }
-        val detail = JPanel(BorderLayout()).apply {
-            add(buttons, BorderLayout.NORTH)
-            add(JBScrollPane(detailPane), BorderLayout.CENTER)
-        }
-        val splitter = OnePixelSplitter(false, "Bidaide.$noun.splitter", 0.4f).apply {
-            firstComponent = JBScrollPane(list)
-            secondComponent = detail
-        }
+        detail.add(buttons, BorderLayout.NORTH)
+        detail.add(detailScroll, BorderLayout.CENTER)
+        splitter.firstComponent = listScroll
+        splitter.secondComponent = detail
         add(header, BorderLayout.NORTH)
         add(splitter, BorderLayout.CENTER)
     }
@@ -215,6 +242,7 @@ abstract class GhListDetailPanel<T : Any>(
             try {
                 model.replaceAll(items)
                 list.emptyText.text = "Sin resultados"
+                onItemsLoaded(items)
                 val index = items.indexOfFirst { id(it) == selectedId }
                 if (index >= 0) list.selectedIndex = index else list.clearSelection()
             } finally {
@@ -252,13 +280,23 @@ abstract class GhListDetailPanel<T : Any>(
         val scroll = detailPane.visibleRect
         shownId = item?.let(::id)
         buttons.removeAll()
+        val custom = item?.let(::detailComponent)
+        if (custom !== customDetail) {
+            detail.remove(customDetail ?: detailScroll)
+            detail.add(custom ?: detailScroll, BorderLayout.CENTER)
+            customDetail = custom
+            detail.revalidate()
+            detail.repaint()
+        }
         if (item == null) {
             detailPane.text = ""
         } else {
             detailButtons(item).forEach(buttons::add)
-            detailPane.text = Html.page(detailHtml(item))
-            detailPane.caretPosition = 0
-            if (sameItem) SwingUtilities.invokeLater { detailPane.scrollRectToVisible(scroll) }
+            if (custom == null) {
+                detailPane.text = Html.page(detailHtml(item))
+                detailPane.caretPosition = 0
+                if (sameItem) SwingUtilities.invokeLater { detailPane.scrollRectToVisible(scroll) }
+            }
         }
         buttons.revalidate()
         buttons.repaint()
