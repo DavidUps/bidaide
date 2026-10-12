@@ -7,6 +7,7 @@
   <img alt="Estado: beta" src="https://img.shields.io/badge/estado-beta-f0883e?style=flat-square">
   <img alt="Android Studio 2026.1 o posterior" src="https://img.shields.io/badge/Android%20Studio-2026.1%2B-58a6ff?style=flat-square&logo=androidstudio&logoColor=white">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-a371f7?style=flat-square&logo=kotlin&logoColor=white">
+  <a href="LICENSE"><img alt="Licencia Apache 2.0" src="https://img.shields.io/badge/licencia-Apache%202.0-4c8bf5?style=flat-square"></a>
   <img alt="Funciona con GitHub CLI" src="https://img.shields.io/badge/GitHub%20CLI-gh-24292f?style=flat-square&logo=github&logoColor=white">
 </p>
 
@@ -304,6 +305,14 @@ JBR 21. Para abrir un segundo IDE de pruebas mientras hay otro en marcha:
 ```sh
 ./gradlew runIde -PsandboxDir=build/otro-sandbox
 ```
+
+## 📄 Licencia
+
+Copyright 2026 David Arribas.
+
+Bidaide se distribuye bajo la [Licencia Apache 2.0](LICENSE): puedes usarlo, modificarlo y redistribuirlo, también
+con fines comerciales, conservando el aviso de copyright y la licencia. El nombre y el logotipo de Bidaide no
+están incluidos en esa concesión.
 
 ---
 
