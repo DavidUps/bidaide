@@ -1,13 +1,14 @@
-name: Build and release
+name: Test and release
 
-# Every push to main builds the plugin and publishes it as a GitHub Release.
-# Pull requests are built and tested, without releasing.
+# Pull requests: tests and build only.
+# Push to main: tests -> next version -> build -> JetBrains Marketplace -> GitHub Release.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
 
+# Releases of the same branch run one after another, so two pushes never compute the same version.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -15,18 +16,26 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  # gradle.properties points org.gradle.java.home at a developer machine; on CI it is the JDK set up below.
+  GRADLE_ARGS: --no-configuration-cache --console=plain
+
 jobs:
-  build:
+  pipeline:
+    name: Test, version, publish
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      # Optional. When set, pushes to main are also published to the JetBrains Marketplace.
+      IS_RELEASE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      # Marketplace publishing is skipped until PUBLISH_TOKEN exists; signing until the three signing secrets exist.
       PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
       CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
       PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
       PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the version is derived from the existing tags
 
       - uses: actions/setup-java@v4
         with:
@@ -35,45 +44,60 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # major.minor come from gradle.properties, the patch number is the run number: 0.1.0 -> 0.1.<run>.
-      - name: Compute version
+      # --- 1. Validate ---
+      - name: Run tests
+        run: ./gradlew test -Dorg.gradle.java.home="$JAVA_HOME" $GRADLE_ARGS
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/
+          if-no-files-found: ignore
+
+      # --- 2. Version ---
+      # major.minor come from pluginVersion in gradle.properties; the patch number is one more than the highest
+      # existing tag of that major.minor (0 when there is none). Raising major.minor starts again at .0.
+      - name: Compute next version
         id: version
         run: |
           base=$(grep -E '^pluginVersion' gradle.properties | cut -d= -f2 | tr -d ' ' | cut -d. -f1,2)
-          echo "version=${base}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          last=$(git tag -l "v${base}.*" | sed "s/^v${base}\.//" | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
+          if [ "$IS_RELEASE" = "true" ]; then version="${base}.$(( ${last:--1} + 1 ))"; else version="${base}.0-pr${{ github.event.number || github.run_number }}"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "### Versión: $version" >> "$GITHUB_STEP_SUMMARY"
 
-      # gradle.properties points org.gradle.java.home at a developer machine; here it is the JDK set up above.
-      - name: Test and build
-        run: >
-          ./gradlew test buildPlugin
-          -PpluginVersion=${{ steps.version.outputs.version }}
-          -Dorg.gradle.java.home="$JAVA_HOME"
-          --no-configuration-cache --console=plain
+      # --- 3. Build ---
+      - name: Build plugin
+        id: build
+        run: ./gradlew buildPlugin -PpluginVersion=${{ steps.version.outputs.version }} -Dorg.gradle.java.home="$JAVA_HOME" $GRADLE_ARGS
 
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: Upload plugin zip
+        uses: actions/upload-artifact@v4
         with:
           name: bidaide-${{ steps.version.outputs.version }}
-          path: |
-            build/distributions/*.zip
-            build/reports/tests/
-          if-no-files-found: ignore
+          path: build/distributions/*.zip
 
+      # --- 4. Publish: JetBrains Marketplace first, then GitHub Releases ---
+      - name: Publish to JetBrains Marketplace
+        if: env.IS_RELEASE == 'true' && env.PUBLISH_TOKEN != ''
+        run: ./gradlew publishPlugin -PpluginVersion=${{ steps.version.outputs.version }} -Dorg.gradle.java.home="$JAVA_HOME" $GRADLE_ARGS
+
+      - name: Note that Marketplace publishing is not configured
+        if: env.IS_RELEASE == 'true' && env.PUBLISH_TOKEN == ''
+        run: |
+          echo "JetBrains Marketplace omitido: falta el secret PUBLISH_TOKEN." >> "$GITHUB_STEP_SUMMARY"
+
+      # Still runs when the Marketplace step fails (a first upload awaiting approval, say): the tag and the zip
+      # are created anyway and the run stays red so the failure is seen.
       - name: Create GitHub release
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: ${{ !cancelled() && env.IS_RELEASE == 'true' && steps.build.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           gh release create "v${{ steps.version.outputs.version }}"
-          build/distributions/*.zip
+          build/distributions/bidaide-${{ steps.version.outputs.version }}.zip
           --title "Bidaide ${{ steps.version.outputs.version }}"
           --generate-notes
           --target "$GITHUB_SHA"
-
-      - name: Publish to JetBrains Marketplace
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.PUBLISH_TOKEN != ''
-        run: >
-          ./gradlew publishPlugin
-          -PpluginVersion=${{ steps.version.outputs.version }}
-          -Dorg.gradle.java.home="$JAVA_HOME"
-          --no-configuration-cache --console=plain

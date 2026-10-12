@@ -45,13 +45,14 @@ intellijPlatform {
     }
     buildSearchableOptions = false
 
-    // Only needed for the JetBrains Marketplace; buildPlugin works without any of these.
+    // Only needed for the JetBrains Marketplace; buildPlugin works without any of these. On CI an unset secret
+    // arrives as an empty variable, which must count as "not configured" so the plugin is simply left unsigned.
     signing {
-        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
-        privateKey = providers.environmentVariable("PRIVATE_KEY")
-        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN").filter { it.isNotBlank() }
+        privateKey = providers.environmentVariable("PRIVATE_KEY").filter { it.isNotBlank() }
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD").filter { it.isNotBlank() }
     }
     publishing {
-        token = providers.environmentVariable("PUBLISH_TOKEN")
+        token = providers.environmentVariable("PUBLISH_TOKEN").filter { it.isNotBlank() }
     }
 }
