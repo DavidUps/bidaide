@@ -9,6 +9,7 @@ import com.bidaide.gh.GhReviewCommands
 import com.bidaide.gh.GhReviewState
 import com.bidaide.gh.GhReviewThread
 import com.intellij.diff.util.Side
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -91,8 +92,41 @@ class PrReviewSession(
 
     val viewedCount: Int get() = files.count { it.filename in viewed }
 
-    /** Updates the mark right away and syncs it to GitHub in the background, undoing it if that fails. */
+    // --- Individual changes ticked off inside a file; local, see [ViewedHunks] ---
+
+    private val hunks = ViewedHunks().apply {
+        restore(runCatching { PropertiesComponent.getInstance(project).getValue(hunksKey()) }.getOrNull(), headSha)
+    }
+
+    private fun hunksKey() = "Bidaide.review.viewedChanges.$number"
+
+    private fun saveHunks() {
+        runCatching { PropertiesComponent.getInstance(project).setValue(hunksKey(), hunks.serialize(headSha)) }
+    }
+
+    fun isHunkViewed(path: String, key: String): Boolean = hunks.isViewed(path, key, isViewed(path))
+
+    /** Tells the session which changes the viewer shows for [path], for the progress shown in the file tree. */
+    fun hunksShown(path: String, keys: Collection<String>) = hunks.seen(path, keys)
+
+    fun hunkProgress(path: String): String? = hunks.progress(path, isViewed(path))
+
+    /** Ticks one change; the file itself becomes viewed with its last change, and stops being so when one is unticked. */
+    fun setHunkViewed(path: String, key: String, value: Boolean, allKeys: Collection<String>) {
+        val fileState = hunks.set(path, key, value, allKeys, isViewed(path))
+        saveHunks()
+        if (fileState != null) syncViewed(path, fileState) else fireChanged()
+    }
+
+    /** Marks the whole file, as the checkbox on github.com does; unmarking it unticks all its changes. */
     fun setViewed(path: String, value: Boolean) {
+        hunks.fileSet(path, value)
+        saveHunks()
+        syncViewed(path, value)
+    }
+
+    /** Updates the mark right away and syncs it to GitHub in the background, undoing it if that fails. */
+    private fun syncViewed(path: String, value: Boolean) {
         if (value) viewed += path else viewed -= path
         fireChanged()
         GhCli.async(

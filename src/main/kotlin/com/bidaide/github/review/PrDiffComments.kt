@@ -8,6 +8,7 @@ import com.intellij.diff.DiffExtension
 import com.intellij.diff.FrameDiffTool
 import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.tools.fragmented.UnifiedDiffViewer
+import com.intellij.diff.tools.simple.SimpleDiffViewer
 import com.intellij.diff.tools.util.base.DiffViewerBase
 import com.intellij.diff.tools.util.base.DiffViewerListener
 import com.intellij.diff.tools.util.side.OnesideTextDiffViewer
@@ -24,11 +25,15 @@ import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.impl.EditorEmbeddedComponentManager
+import com.intellij.openapi.editor.markup.GutterIconRenderer
+import com.intellij.openapi.editor.markup.HighlighterLayer
+import com.intellij.openapi.editor.markup.RangeHighlighter
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.util.ui.JBUI
+import javax.swing.Icon
 import javax.swing.JComponent
 
 /** Hooks into every diff viewer; only acts on requests created by [PrReviewDiff]. */
@@ -75,6 +80,64 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
             }
             addInlay(editor, line, ThreadPanels.build(session, thread, ui, cardWidth(editor), ::render))?.let(inlays::add)
         }
+        renderHunks()
+    }
+
+    // --- A checkbox in the gutter beside every change, as in the commit dialog, to tick changes off one by one ---
+
+    private val hunkMarks = ArrayList<RangeHighlighter>()
+
+    /** One change of the file as this viewer shows it: where its checkbox goes and what identifies it. */
+    private class Hunk(val editor: EditorEx, val line: Int, val key: String)
+
+    private fun hunks(): List<Hunk> = when (viewer) {
+        // The checkbox sits on the head side: that is the code being reviewed.
+        is SimpleDiffViewer -> viewer.diffChanges.map {
+            Hunk(viewer.editor2, it.getStartLine(Side.RIGHT), ViewedHunks.key(it.fragment.startLine1, it.fragment.startLine2))
+        }
+        is UnifiedDiffViewer -> viewer.diffChanges.orEmpty().map {
+            Hunk(viewer.editor, it.line1, ViewedHunks.key(it.lineFragment.startLine1, it.lineFragment.startLine2))
+        }
+        is OnesideTextDiffViewer -> listOf(Hunk(viewer.editor, 0, ViewedHunks.WHOLE_FILE))
+        else -> emptyList()
+    }
+
+    private fun renderHunks() {
+        hunkMarks.forEach { it.dispose() }
+        hunkMarks.clear()
+        val path = review.file.filename
+        val all = hunks()
+        val keys = all.map { it.key }
+        session.hunksShown(path, keys)
+        for (hunk in all) {
+            val editor = hunk.editor
+            if (editor.isDisposed || editor.document.lineCount == 0) continue
+            editor.settings.isLineMarkerAreaShown = true
+            val line = hunk.line.coerceIn(0, editor.document.lineCount - 1)
+            val mark = editor.markupModel.addLineHighlighter(line, HighlighterLayer.LAST, null)
+            mark.gutterIconRenderer = HunkCheckbox(hunk.key, session.isHunkViewed(path, hunk.key)) { viewed ->
+                session.setHunkViewed(path, hunk.key, viewed, keys)
+            }
+            hunkMarks += mark
+        }
+    }
+
+    private class HunkCheckbox(private val key: String, private val viewed: Boolean, private val onToggle: (Boolean) -> Unit) : GutterIconRenderer() {
+        override fun getIcon(): Icon = if (viewed) AllIcons.Diff.GutterCheckBoxSelected else AllIcons.Diff.GutterCheckBox
+
+        override fun getTooltipText() = if (viewed) "Cambio visto. Clic para desmarcarlo" else "Marcar este cambio como visto"
+
+        override fun isNavigateAction() = true
+
+        override fun getAlignment() = Alignment.LEFT
+
+        override fun getClickAction(): AnAction = object : AnAction() {
+            override fun actionPerformed(e: AnActionEvent) = onToggle(!viewed)
+        }
+
+        override fun equals(other: Any?) = other is HunkCheckbox && other.key == key && other.viewed == viewed
+
+        override fun hashCode() = key.hashCode() * 31 + viewed.hashCode()
     }
 
     /** Opens a comment box under the caret line (or the selected lines) of [editor]. */

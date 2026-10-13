@@ -95,10 +95,12 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
 
 ### Pull requests
 
-- **Lista** con filtro por estado, filtros rápidos (mías, pendientes de mi review, asignadas, me mencionan) y
-  búsqueda con la sintaxis de GitHub.
+- **Lista** al estilo de github.com: título con sus labels, quién la abrió y cuándo, ramas, estado de review y de
+  checks, avatares de quien la tiene asignada y última actividad. Con filtro por estado, filtros rápidos (mías,
+  pendientes de mi review, asignadas, me mencionan) y búsqueda con la sintaxis de GitHub.
 - **Crear**: título y cuerpo salen de tus commits o de `PULL_REQUEST_TEMPLATE.md`. Reviewers, asignados, labels,
   borrador. Hace push de la rama antes.
+- **Autor y reviewers con su avatar** de GitHub, y el estado de cada review (aprobó, pidió cambios, pendiente).
 - **Requisitos para fusionar**: una lista con ✓ y ✗ de lo que exige la rama base. Aprobaciones que faltan, checks
   obligatorios, conversaciones sin resolver, rama al día, conflictos. Lee rulesets y protección de rama.
 - **Detalle** con la actividad completa en orden: comentarios, reviews, commits, labels, cierres.
@@ -118,6 +120,8 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
   pendiente hasta que pulses **Enviar review** (comentar, aprobar o pedir cambios).
 - 💡 **Sugerencias**: *Insertar sugerencia* crea el bloque `suggestion`; *Aplicar sugerencia* crea el commit
   directamente en GitHub, como el botón de la web. No toca tus archivos locales.
+- ☑️ **Cambios vistos uno a uno**: una casilla junto a cada cambio, como al preparar un commit. Al marcar el
+  último, el archivo pasa a *Visto*; al marcar el archivo, se marcan todos sus cambios.
 - 🧩 **Commit a commit**: un desplegable cambia entre todos los cambios y cada commit.
 - ⚡ **Respuestas guardadas** para los comentarios que repites.
 - 🕰️ **Hilos obsoletos** (el código ya cambió) en un popup desde la lista.
@@ -131,8 +135,10 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
 
 ### Issues
 
-Listar, crear, comentar, cerrar, reabrir y editar labels / asignados / milestone. **Crear rama** enlazada a la
-issue.
+Lista al estilo de github.com: título con sus labels, quién la abrió y cuándo, PR que la cierran, avatares de
+los asignados y última actividad. El detalle lleva cabecera con estado, labels, autor y asignados.
+
+Crear, comentar, cerrar, reabrir y editar labels / asignados / milestone. **Crear rama** enlazada a la issue.
 
 **Tablero**: el botón *Ver como tablero* cambia la lista por columnas de tarjetas, agrupadas por label, asignado,
 milestone o estado. Arrastra una tarjeta a otra columna y la issue cambia en GitHub. Desde el editor, **Crear issue desde selección**: un `TODO` pasa a ser el título y el cuerpo lleva el
@@ -152,7 +158,7 @@ Runs de tu rama o de todas, con refresco automático mientras algo corre.
 | Pestaña | Qué hace |
 |---|---|
 | **Releases** | Crear (tag, notas automáticas, borrador, pre-release), publicar, borrar, descargar archivos. |
-| **Bandeja** | Notificaciones de este repositorio o de todos. Marcar leída, archivar, dejar de seguir. |
+| **Bandeja** | Tus notificaciones como en github.com: vistas por motivo (asignadas, menciones, review solicitada) y por repositorio, todas o sin leer, búsqueda. Marcar leída, archivar, dejar de seguir. |
 | **Discussions** | Listar, leer con respuestas, comentar, crear. |
 | **Projects** | Tablero con una columna por estado; arrastra tarjetas entre columnas, añade issues o PR. |
 

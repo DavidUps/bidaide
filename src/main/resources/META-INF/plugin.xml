@@ -8,6 +8,9 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <!-- Android Studio only. IntelliJ IDEA no longer bundles the Android plugin, and its version of that plugin's
+         API differs from the one this plugin is built and verified against. -->
+    <depends>com.intellij.modules.androidstudio</depends>
     <depends>org.jetbrains.android</depends>
     <depends>Git4Idea</depends>
 

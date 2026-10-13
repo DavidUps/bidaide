@@ -252,6 +252,8 @@ class PrReviewWindow(private val session: PrReviewSession) {
                         append(name, SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, status.color))
                         if (scope.interactive) {
                             if (session.isViewed(file.filename)) append("  ✓ visto", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                            // Partly reviewed: how many of its changes are ticked off.
+                            session.hunkProgress(file.filename)?.let { append("  ◐ $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
                             val count = session.threadCount(file.filename)
                             if (count > 0) append("  💬 $count", SimpleTextAttributes.GRAYED_ATTRIBUTES)
                         }

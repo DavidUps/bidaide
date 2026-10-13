@@ -2,10 +2,12 @@ package com.bidaide.gh
 
 /** Builds `gh` argument lists. Pure, so the exact commands can be unit tested. */
 object GhCommands {
-    const val PR_LIST_FIELDS = "number,title,state,isDraft,author,headRefName,baseRefName,updatedAt,url,reviewDecision,labels"
+    const val PR_LIST_FIELDS = "number,title,state,isDraft,author,headRefName,baseRefName,createdAt,updatedAt,url,reviewDecision," +
+        "labels,assignees,statusCheckRollup"
     const val PR_VIEW_FIELDS = "$PR_LIST_FIELDS,body,additions,deletions,changedFiles,files,commits,reviews,comments," +
-        "mergeable,statusCheckRollup,assignees,baseRefOid,headRefOid,autoMergeRequest,milestone"
-    const val ISSUE_LIST_FIELDS = "number,title,state,author,labels,assignees,updatedAt,url,milestone"
+        "mergeable,baseRefOid,headRefOid,autoMergeRequest,milestone,reviewRequests,latestReviews"
+    const val ISSUE_LIST_FIELDS = "number,title,state,stateReason,author,labels,assignees,createdAt,updatedAt,url,milestone," +
+        "closedByPullRequestsReferences"
     const val ISSUE_VIEW_FIELDS = "$ISSUE_LIST_FIELDS,body,comments"
     private const val LIST_LIMIT = "100"
 

@@ -54,6 +54,7 @@ data class GhPullRequest(
     val author: GhUser? = null,
     val headRefName: String = "",
     val baseRefName: String = "",
+    val createdAt: String? = null,
     val updatedAt: String? = null,
     val url: String = "",
     val reviewDecision: String? = null,
@@ -74,6 +75,10 @@ data class GhPullRequest(
     /** Non-null while auto-merge is enabled. */
     val autoMergeRequest: Any? = null,
     val milestone: GhMilestone? = null,
+    /** Users and teams still asked to review. */
+    val reviewRequests: List<GhReviewRequest>? = null,
+    /** The most recent review of each reviewer. */
+    val latestReviews: List<GhReview>? = null,
     /** Not part of the gh JSON: filled in separately from [GhTimeline]. */
     @Transient val timeline: List<GhTimelineEvent>? = null,
     /** Not part of the gh JSON: the merge checklist from [GhMergeRules], for open pull requests. */
@@ -141,6 +146,8 @@ data class GhWorkflow(val id: Long = 0, val name: String = "", val path: String 
 
 class GhViewedStates(val pullRequestId: String, val viewedPaths: Set<String>)
 
+data class GhLinkedPullRequest(val number: Int = 0, val url: String? = null)
+
 data class GhIssue(
     val number: Int = 0,
     val title: String = "",
@@ -148,11 +155,16 @@ data class GhIssue(
     val author: GhUser? = null,
     val labels: List<GhLabel>? = null,
     val assignees: List<GhUser>? = null,
+    val createdAt: String? = null,
     val updatedAt: String? = null,
     val url: String = "",
     val body: String? = null,
     val comments: List<GhComment>? = null,
     val milestone: GhMilestone? = null,
+    /** COMPLETED or NOT_PLANNED once closed. */
+    val stateReason: String? = null,
+    /** Pull requests that will close this issue when merged. */
+    val closedByPullRequestsReferences: List<GhLinkedPullRequest>? = null,
     @Transient val timeline: List<GhTimelineEvent>? = null,
 ) {
     val isOpen: Boolean get() = state.equals("OPEN", ignoreCase = true)
