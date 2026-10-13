@@ -67,6 +67,11 @@ class GhCommandsTest {
     }
 
     @Test
+    fun `user endpoint command`() {
+        assertEquals(listOf("api", "users/octocat"), GhCommands.user("octocat"))
+    }
+
+    @Test
     fun `auth errors are recognised`() {
         assertTrue(GhCli.isAuthError("To get started with GitHub CLI, please run:  gh auth login"))
         assertTrue(GhCli.isAuthError("You are not logged into any GitHub hosts."))

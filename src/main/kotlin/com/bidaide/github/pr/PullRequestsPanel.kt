@@ -11,6 +11,7 @@ import com.bidaide.gh.GhMergeRules
 import com.bidaide.gh.GhPullRequest
 import com.bidaide.gh.GhRepoContext
 import com.bidaide.gh.GhTimeline
+import com.bidaide.gh.GhUserResolver
 import com.bidaide.gh.display
 import com.bidaide.github.review.PrReviewDiff
 import com.bidaide.github.runs.CiArtifacts
@@ -38,6 +39,8 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
     filters = StateFilter.entries.map { FilterOption(it.label, it.name) },
     scopes = GhCommands.PR_SCOPES.map { FilterOption(it.first, it.second) },
 ) {
+    private val userResolver = GhUserResolver()
+
     override fun listArgs(filter: String, scope: String, search: String) =
         GhCommands.prList(StateFilter.valueOf(filter), GhCommands.combineSearch(scope, search))
 
@@ -47,7 +50,7 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
     override fun id(item: GhPullRequest) = item.number.toLong()
 
     override fun fetchDetail(workDir: File, item: GhPullRequest): GhPullRequest {
-        val pr = super.fetchDetail(workDir, item)
+        val pr = userResolver.resolvePullRequestUsers(workDir, super.fetchDetail(workDir, item))
         // The feed is a nicety: without it reviews, comments and commits are listed separately.
         return pr.copy(
             timeline = runCatching { GhTimeline.parse(GhCli.run(workDir, GhTimeline.args(pr.number))) }.getOrNull(),
@@ -68,6 +71,7 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
     }
 
     override fun detailHtml(item: GhPullRequest): String = PullRequestHtml.render(item)
+    override fun detailComponent(item: GhPullRequest): JComponent = PullRequestPreviewComponent(item)
 
     override fun detailButtons(item: GhPullRequest): List<JButton> = buildList {
         val n = item.number

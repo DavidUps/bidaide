@@ -2,6 +2,7 @@ package com.bidaide.gh
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,6 +34,8 @@ class GhJsonTest {
              "files":[{"path":"a.kt","additions":3,"deletions":1}],
              "commits":[{"oid":"0123456789","messageHeadline":"msg","authors":[]}],
              "reviews":[{"author":{"login":"rev"},"state":"APPROVED","body":"","submittedAt":"2026-10-01T00:00:00Z"}],
+             "latestReviews":[{"author":{"login":"rev2"},"state":"COMMENTED","body":"","submittedAt":"2026-10-01T00:00:00Z"}],
+             "reviewRequests":[{"requestedReviewer":{"login":"rev"}}],
              "comments":[{"author":{"login":"c"},"body":"hi","createdAt":"2026-10-02T00:00:00Z"}],
              "mergeable":"MERGEABLE",
              "statusCheckRollup":[
@@ -45,6 +48,7 @@ class GhJsonTest {
         assertFalse(pr.isOpen)
         assertEquals("ghost", pr.author.display())
         assertEquals("a.kt", pr.files!!.single().path)
+        assertEquals(listOf("rev", "rev2"), pr.reviewers.mapNotNull { it.login })
         val (run, status, pending) = pr.statusCheckRollup!!
         assertEquals("CI / build", run.displayName)
         assertTrue(run.passed)
@@ -62,5 +66,39 @@ class GhJsonTest {
         val issue = GhJson.issue("""{"number":9,"title":"I","state":"CLOSED","author":{"login":"a"},"url":"u","body":"","comments":[]}""")
         assertEquals(9, issue.number)
         assertFalse(issue.isOpen)
+    }
+
+    @Test
+    fun `keeps reviewers empty when metadata is missing`() {
+        val pr = GhJson.pullRequest("""{"number":11,"title":"T","state":"OPEN","isDraft":false,"headRefName":"h","baseRefName":"b","url":"u"}""")
+        assertTrue(pr.reviewers.isEmpty())
+    }
+
+    @Test
+    fun `deduplicates reviewers and excludes author`() {
+        val pr = GhJson.pullRequest(
+            """
+            {"number":10,"title":"T","state":"OPEN","isDraft":false,"author":{"login":"alice"},"headRefName":"h","baseRefName":"b","url":"u",
+             "reviewRequests":[{"requestedReviewer":{"login":"bob"}},{"requestedReviewer":{"login":"BOB"}},{"requestedReviewer":{"login":"alice"}}],
+             "latestReviews":[{"author":{"login":"bob"}},{"author":{"login":"carol"}}],
+             "reviews":[{"author":{"login":"carol"}},{"author":{"login":"dave"}}]}
+            """.trimIndent()
+        )
+        assertEquals(listOf("bob", "carol", "dave"), pr.reviewers.mapNotNull { it.login })
+    }
+
+    @Test
+    fun `parses github user avatar fields`() {
+        val withSnake = GhJson.user("""{"login":"octocat","avatar_url":"https://a"}""")
+        assertEquals("octocat", withSnake.login)
+        assertEquals("https://a", withSnake.avatarUrl)
+
+        val withCamel = GhJson.user("""{"login":"octocat","avatarUrl":"https://b"}""")
+        assertEquals("https://b", withCamel.avatarUrl)
+
+        val withoutAvatar = GhJson.user("""{"login":"ghost"}""")
+        assertEquals("ghost", withoutAvatar.login)
+        assertNull(withoutAvatar.avatarUrl)
+        assertNotNull(withoutAvatar)
     }
 }

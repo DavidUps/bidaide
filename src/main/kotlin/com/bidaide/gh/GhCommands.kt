@@ -3,7 +3,7 @@ package com.bidaide.gh
 /** Builds `gh` argument lists. Pure, so the exact commands can be unit tested. */
 object GhCommands {
     const val PR_LIST_FIELDS = "number,title,state,isDraft,author,headRefName,baseRefName,updatedAt,url,reviewDecision,labels"
-    const val PR_VIEW_FIELDS = "$PR_LIST_FIELDS,body,additions,deletions,changedFiles,files,commits,reviews,comments," +
+    const val PR_VIEW_FIELDS = "$PR_LIST_FIELDS,body,additions,deletions,changedFiles,files,commits,reviews,latestReviews,reviewRequests,comments," +
         "mergeable,statusCheckRollup,assignees,baseRefOid,headRefOid,autoMergeRequest,milestone"
     const val ISSUE_LIST_FIELDS = "number,title,state,author,labels,assignees,updatedAt,url,milestone"
     const val ISSUE_VIEW_FIELDS = "$ISSUE_LIST_FIELDS,body,comments"
@@ -168,6 +168,8 @@ object GhCommands {
 
     /** Pull requests a commit belongs to; the way from a blamed line back to its review. */
     fun commitPulls(sha: String) = listOf("api", "$REPO/commits/$sha/pulls")
+
+    fun user(login: String) = listOf("api", "users/$login")
 
     fun repoName() = listOf("repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner")
 

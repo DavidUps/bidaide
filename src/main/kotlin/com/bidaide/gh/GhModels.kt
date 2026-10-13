@@ -7,7 +7,10 @@ import com.google.gson.reflect.TypeToken
 
 // Shapes of `gh ... --json` output. Gson leaves absent fields null, so defaults only apply to fields gh always sends.
 
-data class GhUser(val login: String? = null) {
+data class GhUser(
+    val login: String? = null,
+    @SerializedName(value = "avatarUrl", alternate = ["avatar_url"]) val avatarUrl: String? = null,
+) {
     override fun toString() = login ?: GHOST
 }
 
@@ -25,6 +28,8 @@ data class GhFile(val path: String = "", val additions: Int = 0, val deletions: 
 data class GhCommit(val oid: String = "", val messageHeadline: String = "")
 
 data class GhReview(val author: GhUser? = null, val state: String? = null, val body: String? = null, val submittedAt: String? = null)
+
+data class GhReviewRequest(val requestedReviewer: GhUser? = null)
 
 data class GhComment(val author: GhUser? = null, val body: String? = null, val createdAt: String? = null)
 
@@ -66,6 +71,8 @@ data class GhPullRequest(
     val commits: List<GhCommit>? = null,
     val reviews: List<GhReview>? = null,
     val comments: List<GhComment>? = null,
+    val reviewRequests: List<GhReviewRequest>? = null,
+    val latestReviews: List<GhReview>? = null,
     val mergeable: String? = null,
     val statusCheckRollup: List<GhCheck>? = null,
     val assignees: List<GhUser>? = null,
@@ -78,6 +85,8 @@ data class GhPullRequest(
     @Transient val timeline: List<GhTimelineEvent>? = null,
     /** Not part of the gh JSON: the merge checklist from [GhMergeRules], for open pull requests. */
     @Transient val mergeStatus: GhMergeStatus? = null,
+    /** Not part of the gh JSON: requested and latest reviewers, deduplicated and without the author. */
+    @Transient val reviewers: List<GhUser> = emptyList(),
 ) {
     val checks: List<GhCheck> get() = statusCheckRollup.orEmpty()
     val checksFailed: Boolean get() = checks.any { it.failed }
@@ -167,7 +176,15 @@ object GhJson {
     fun pullRequests(json: String): List<GhPullRequest> =
         gson.fromJson<List<GhPullRequest>>(json, object : TypeToken<List<GhPullRequest>>() {}.type).orEmpty()
 
-    fun pullRequest(json: String): GhPullRequest = gson.fromJson(json, GhPullRequest::class.java)
+    fun pullRequest(json: String): GhPullRequest {
+        val pr = gson.fromJson(json, GhPullRequest::class.java)
+        return pr.copy(reviewers = pr.reviewersFromMetadata())
+    }
+
+    fun user(json: String): GhUser {
+        val user = parseObject(json)
+        return GhUser(user.string("login"), user.string("avatar_url") ?: user.string("avatarUrl"))
+    }
 
     /** `gh api --paginate --slurp` wraps the pages in an outer array. */
     fun prFiles(slurped: String): List<GhPrFile> =
@@ -205,4 +222,23 @@ object GhJson {
         gson.fromJson<List<GhIssue>>(json, object : TypeToken<List<GhIssue>>() {}.type).orEmpty()
 
     fun issue(json: String): GhIssue = gson.fromJson(json, GhIssue::class.java)
+}
+
+private fun GhPullRequest.reviewersFromMetadata(): List<GhUser> {
+    val authorLogin = author?.login?.lowercase()
+    val seen = HashSet<String>()
+    val reviewers = ArrayList<GhUser>()
+
+    fun add(user: GhUser?) {
+        val login = user?.login?.trim().orEmpty()
+        if (login.isBlank()) return
+        val key = login.lowercase()
+        if (key == authorLogin || !seen.add(key)) return
+        reviewers += user.copy(login = login)
+    }
+
+    reviewRequests.orEmpty().forEach { add(it.requestedReviewer) }
+    latestReviews.orEmpty().forEach { add(it.author) }
+    reviews.orEmpty().forEach { add(it.author) }
+    return reviewers
 }
