@@ -4,6 +4,7 @@ import com.bidaide.gh.GhJson
 import com.bidaide.gh.GhNotifications
 import com.bidaide.github.inbox.Inbox
 import com.bidaide.github.pr.PullRequestRows
+import com.bidaide.github.ui.GhListDetailPanel
 import com.bidaide.github.ui.TimeAgo
 import com.bidaide.github.ui.Tones
 import org.junit.Assert.assertEquals
@@ -72,6 +73,18 @@ class RedesignTest {
         assertTrue(PullRequestRows.row(bare, now).badges.isEmpty())
         assertEquals(Tones.GRAY, Tones.ofLabel(null))
         assertEquals(Tones.GRAY, Tones.ofLabel("nope"))
+    }
+
+    @Test
+    fun `the more menu only appears when it has something to hold`() {
+        // Panels that never fold use Int.MAX_VALUE; that must not overflow into "always fold".
+        assertFalse(GhListDetailPanel.foldsButtons(3, Int.MAX_VALUE))
+        assertFalse(GhListDetailPanel.foldsButtons(0, Int.MAX_VALUE))
+        assertFalse(GhListDetailPanel.foldsButtons(4, 4))
+        // One left over is shown as a button rather than hidden alone in a menu.
+        assertFalse(GhListDetailPanel.foldsButtons(5, 4))
+        assertTrue(GhListDetailPanel.foldsButtons(6, 4))
+        assertTrue(GhListDetailPanel.foldsButtons(12, 4))
     }
 
     private val notifications = GhNotifications.parseList(

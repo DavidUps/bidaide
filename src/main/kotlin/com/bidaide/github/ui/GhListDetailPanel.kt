@@ -326,7 +326,9 @@ abstract class GhListDetailPanel<T : Any>(
 
     /** The main action stands out, a few more sit beside it, and everything else is one click away under "Más". */
     private fun showButtons(all: List<JButton>) {
-        if (all.size <= visibleButtons + 1) {
+        // A menu holding a single action would only hide it, so it takes at least two to be worth one.
+        // (Written as a subtraction: visibleButtons is Int.MAX_VALUE for panels that never fold their buttons.)
+        if (!foldsButtons(all.size, visibleButtons)) {
             all.forEach(buttons::add)
             return
         }
@@ -343,6 +345,11 @@ abstract class GhListDetailPanel<T : Any>(
             }
         }
         buttons.add(more)
+    }
+
+    companion object {
+        /** Whether [total] buttons, of which [visible] may show, leave enough over to deserve a "Más" menu. */
+        internal fun foldsButtons(total: Int, visible: Int): Boolean = total - visible >= 2
     }
 
     protected fun button(text: String, onClick: () -> Unit) = JButton(text).apply { addActionListener { onClick() } }

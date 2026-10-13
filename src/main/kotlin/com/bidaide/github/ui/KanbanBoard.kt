@@ -10,7 +10,10 @@ import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.Rectangle
 import java.awt.datatransfer.DataFlavor
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.datatransfer.StringSelection
 import java.awt.datatransfer.Transferable
 import java.awt.event.MouseEvent
@@ -24,6 +27,7 @@ import javax.swing.JPanel
 import javax.swing.ListCellRenderer
 import javax.swing.ListSelectionModel
 import javax.swing.ScrollPaneConstants
+import javax.swing.Scrollable
 import javax.swing.TransferHandler
 
 /**
@@ -44,7 +48,17 @@ class KanbanBoard(
 
     class Column(val key: String, val title: String, val cards: List<Card>)
 
-    private val row = JPanel().apply {
+    /**
+     * The columns share the width of the board when they fit, and only scroll sideways when there are too many to
+     * show at a readable width.
+     */
+    private val row = object : JPanel(), Scrollable {
+        override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
+        override fun getScrollableUnitIncrement(visible: Rectangle, orientation: Int, direction: Int) = JBUI.scale(24)
+        override fun getScrollableBlockIncrement(visible: Rectangle, orientation: Int, direction: Int) = JBUI.scale(COLUMN_WIDTH)
+        override fun getScrollableTracksViewportWidth() = (parent?.width ?: 0) >= minimumSize.width
+        override fun getScrollableTracksViewportHeight() = true
+    }.apply {
         layout = BoxLayout(this, BoxLayout.X_AXIS)
         border = JBUI.Borders.empty(6)
     }
@@ -73,7 +87,6 @@ class KanbanBoard(
         } finally {
             adjusting = false
         }
-        row.add(Box.createHorizontalGlue())
         row.revalidate()
         row.repaint()
     }
@@ -87,6 +100,13 @@ class KanbanBoard(
         list.dragEnabled = true
         list.dropMode = DropMode.ON
         list.transferHandler = Mover(column.key, list)
+        // Cards wrap to the column's width, so their heights have to be measured again when it changes.
+        list.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) {
+                list.fixedCellHeight = 1
+                list.fixedCellHeight = -1
+            }
+        })
         list.addListSelectionListener { event ->
             if (event.valueIsAdjusting || adjusting) return@addListSelectionListener
             val card = list.selectedValue ?: return@addListSelectionListener
@@ -112,7 +132,6 @@ class KanbanBoard(
         val header = JBLabel("<html><b>${Html.esc(column.title)}</b> <font color=\"gray\">${column.cards.size}</font></html>").apply {
             border = JBUI.Borders.empty(6, 8)
         }
-        val width = JBUI.scale(COLUMN_WIDTH)
         return JPanel(BorderLayout()).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)
             add(header, BorderLayout.NORTH)
@@ -120,9 +139,10 @@ class KanbanBoard(
                 border = JBUI.Borders.empty()
                 horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
             }, BorderLayout.CENTER)
-            preferredSize = Dimension(width, JBUI.scale(100))
-            minimumSize = Dimension(width, JBUI.scale(80))
-            maximumSize = Dimension(width, Int.MAX_VALUE)
+            preferredSize = Dimension(JBUI.scale(COLUMN_WIDTH), JBUI.scale(100))
+            minimumSize = Dimension(JBUI.scale(MIN_COLUMN_WIDTH), JBUI.scale(80))
+            // No limit: with room to spare the columns grow, all by the same amount.
+            maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
         }
     }
 
@@ -136,8 +156,9 @@ class KanbanBoard(
         }
 
         override fun getListCellRendererComponent(list: JList<out Card>, value: Card, index: Int, selected: Boolean, focused: Boolean): Component {
-            val textWidth = JBUI.scale(COLUMN_WIDTH - 44)
-            title.text = "<html><div style=\"width:${textWidth}px\">${Html.esc(value.title.take(110))}</div></html>"
+            // Wrap to the column as it is now; columns are no longer of one fixed width.
+            val textWidth = ((if (list.width > 0) list.width else JBUI.scale(COLUMN_WIDTH)) - JBUI.scale(28)).coerceAtLeast(JBUI.scale(120))
+            title.text = "<html><div style=\"width:${(textWidth / 1.34).toInt()}px\">${Html.esc(value.title.take(110))}</div></html>"
             subtitle.text = value.subtitle
             subtitle.isVisible = value.subtitle.isNotBlank()
             val background = if (selected) UIUtil.getListSelectionBackground(list.hasFocus()) else UIUtil.getListBackground()
@@ -179,6 +200,7 @@ class KanbanBoard(
 
     private companion object {
         const val COLUMN_WIDTH = 270
+        const val MIN_COLUMN_WIDTH = 210
         const val MARKER = "bidaide-card:"
         const val SEPARATOR = "\n"
     }
