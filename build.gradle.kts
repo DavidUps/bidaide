@@ -56,3 +56,8 @@ intellijPlatform {
         token = providers.environmentVariable("PUBLISH_TOKEN").filter { it.isNotBlank() }
     }
 }
+
+tasks.test {
+    // Component tests build Swing components; CI machines have no display.
+    systemProperty("java.awt.headless", "true")
+}

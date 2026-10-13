@@ -74,6 +74,10 @@ data class GhPullRequest(
     /** Non-null while auto-merge is enabled. */
     val autoMergeRequest: Any? = null,
     val milestone: GhMilestone? = null,
+    /** Users and teams still asked to review. */
+    val reviewRequests: List<GhReviewRequest>? = null,
+    /** The most recent review of each reviewer. */
+    val latestReviews: List<GhReview>? = null,
     /** Not part of the gh JSON: filled in separately from [GhTimeline]. */
     @Transient val timeline: List<GhTimelineEvent>? = null,
     /** Not part of the gh JSON: the merge checklist from [GhMergeRules], for open pull requests. */

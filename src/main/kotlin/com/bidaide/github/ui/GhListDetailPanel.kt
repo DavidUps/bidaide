@@ -74,6 +74,8 @@ abstract class GhListDetailPanel<T : Any>(
     private val listScroll = JBScrollPane(list)
     private val splitter = OnePixelSplitter(false, "Bidaide.$noun.splitter", 0.4f)
 
+    private val headerHolder = JPanel(BorderLayout())
+
     /** What currently fills the detail area instead of the HTML pane, if [detailComponent] provided something. */
     private var customDetail: JComponent? = null
 
@@ -113,6 +115,9 @@ abstract class GhListDetailPanel<T : Any>(
 
     /** Called on the EDT with the freshly loaded items, before the selection is restored. */
     protected open fun onItemsLoaded(items: List<T>) {}
+
+    /** An optional strip between the buttons and the detail of [item], for what HTML cannot show (live images, say). */
+    protected open fun detailHeader(item: T): JComponent? = null
 
     /** A component to show for [item] instead of the HTML of [detailHtml]; null (the default) keeps the HTML. */
     protected open fun detailComponent(item: T): JComponent? = null
@@ -192,7 +197,10 @@ abstract class GhListDetailPanel<T : Any>(
                 add(stateCombo)
             }, BorderLayout.EAST)
         }
-        detail.add(buttons, BorderLayout.NORTH)
+        detail.add(JPanel(BorderLayout()).apply {
+            add(buttons, BorderLayout.NORTH)
+            add(headerHolder, BorderLayout.CENTER)
+        }, BorderLayout.NORTH)
         detail.add(detailScroll, BorderLayout.CENTER)
         splitter.firstComponent = listScroll
         splitter.secondComponent = detail
@@ -280,6 +288,9 @@ abstract class GhListDetailPanel<T : Any>(
         val scroll = detailPane.visibleRect
         shownId = item?.let(::id)
         buttons.removeAll()
+        headerHolder.removeAll()
+        item?.let(::detailHeader)?.let { headerHolder.add(it, BorderLayout.CENTER) }
+        headerHolder.revalidate()
         val custom = item?.let(::detailComponent)
         if (custom !== customDetail) {
             detail.remove(customDetail ?: detailScroll)

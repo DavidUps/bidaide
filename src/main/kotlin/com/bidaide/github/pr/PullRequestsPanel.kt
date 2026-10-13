@@ -8,6 +8,7 @@ import com.bidaide.gh.GhCommands.ReviewKind
 import com.bidaide.gh.GhCommands.StateFilter
 import com.bidaide.gh.GhJson
 import com.bidaide.gh.GhMergeRules
+import com.bidaide.gh.GhPeople
 import com.bidaide.gh.GhPullRequest
 import com.bidaide.gh.GhRepoContext
 import com.bidaide.gh.GhTimeline
@@ -68,6 +69,14 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
     }
 
     override fun detailHtml(item: GhPullRequest): String = PullRequestHtml.render(item)
+
+    /** Author and reviewers with their avatars; the pull request shows at once and the avatars arrive on their own. */
+    override fun detailHeader(item: GhPullRequest): JComponent? {
+        val people = GhPeople.of(item)
+        if (people.isEmpty) return null
+        val workDir = GhRepoContext.workDir(project)
+        return PullRequestPeoplePanel(people, resolve = { who, onResolved -> GitHubUsers.resolveAsync(workDir, item.number, who, onResolved) })
+    }
 
     override fun detailButtons(item: GhPullRequest): List<JButton> = buildList {
         val n = item.number

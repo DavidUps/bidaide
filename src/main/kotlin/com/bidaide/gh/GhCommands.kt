@@ -4,7 +4,7 @@ package com.bidaide.gh
 object GhCommands {
     const val PR_LIST_FIELDS = "number,title,state,isDraft,author,headRefName,baseRefName,updatedAt,url,reviewDecision,labels"
     const val PR_VIEW_FIELDS = "$PR_LIST_FIELDS,body,additions,deletions,changedFiles,files,commits,reviews,comments," +
-        "mergeable,statusCheckRollup,assignees,baseRefOid,headRefOid,autoMergeRequest,milestone"
+        "mergeable,statusCheckRollup,assignees,baseRefOid,headRefOid,autoMergeRequest,milestone,reviewRequests,latestReviews"
     const val ISSUE_LIST_FIELDS = "number,title,state,author,labels,assignees,updatedAt,url,milestone"
     const val ISSUE_VIEW_FIELDS = "$ISSUE_LIST_FIELDS,body,comments"
     private const val LIST_LIMIT = "100"

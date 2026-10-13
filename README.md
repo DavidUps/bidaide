@@ -99,6 +99,7 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
   búsqueda con la sintaxis de GitHub.
 - **Crear**: título y cuerpo salen de tus commits o de `PULL_REQUEST_TEMPLATE.md`. Reviewers, asignados, labels,
   borrador. Hace push de la rama antes.
+- **Autor y reviewers con su avatar** de GitHub, y el estado de cada review (aprobó, pidió cambios, pendiente).
 - **Requisitos para fusionar**: una lista con ✓ y ✗ de lo que exige la rama base. Aprobaciones que faltan, checks
   obligatorios, conversaciones sin resolver, rama al día, conflictos. Lee rulesets y protección de rama.
 - **Detalle** con la actividad completa en orden: comentarios, reviews, commits, labels, cierres.
