@@ -120,6 +120,8 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
   pendiente hasta que pulses **Enviar review** (comentar, aprobar o pedir cambios).
 - 💡 **Sugerencias**: *Insertar sugerencia* crea el bloque `suggestion`; *Aplicar sugerencia* crea el commit
   directamente en GitHub, como el botón de la web. No toca tus archivos locales.
+- ☑️ **Cambios vistos uno a uno**: una casilla junto a cada cambio, como al preparar un commit. Al marcar el
+  último, el archivo pasa a *Visto*; al marcar el archivo, se marcan todos sus cambios.
 - 🧩 **Commit a commit**: un desplegable cambia entre todos los cambios y cada commit.
 - ⚡ **Respuestas guardadas** para los comentarios que repites.
 - 🕰️ **Hilos obsoletos** (el código ya cambió) en un popup desde la lista.
