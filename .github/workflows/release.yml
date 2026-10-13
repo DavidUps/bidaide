@@ -58,6 +58,10 @@ jobs:
           path: build/reports/tests/
           if-no-files-found: ignore
 
+      # The checker the Marketplace runs on every upload: fails on binary incompatibilities with the IDE.
+      - name: Verify plugin compatibility
+        run: ./gradlew verifyPlugin -Dorg.gradle.java.home="$JAVA_HOME" $GRADLE_ARGS
+
       # --- 2. Version ---
       # major.minor come from pluginVersion in gradle.properties; the patch number is one more than the highest
       # existing tag of that major.minor (0 when there is none). Raising major.minor starts again at .0.

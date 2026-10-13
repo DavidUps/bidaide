@@ -10,6 +10,12 @@ version = providers.gradleProperty("pluginVersion").get()
 
 kotlin {
     jvmToolchain(21)
+    compilerOptions {
+        // Without this the compiler copies every default method of the platform's Kotlin interfaces into our classes
+        // (ToolWindowFactory.isApplicable, StatusBarWidget.getPresentation(PlatformType)...). Those copies call
+        // deprecated and to-be-removed API we never use ourselves, and would break when the platform drops it.
+        freeCompilerArgs.add("-jvm-default=no-compatibility")
+    }
 }
 
 repositories {
@@ -29,6 +35,7 @@ dependencies {
         if (localAndroidStudio != null) local(localAndroidStudio) else androidStudio(providers.gradleProperty("androidStudioVersion"))
         bundledPlugins("org.jetbrains.android", "Git4Idea")
         testFramework(TestFrameworkType.Platform)
+        pluginVerifier()
     }
     testImplementation("junit:junit:4.13.2")
 }
@@ -44,6 +51,14 @@ intellijPlatform {
         }
     }
     buildSearchableOptions = false
+
+    // ./gradlew verifyPlugin runs the same checker the Marketplace runs on every upload, against the IDE the
+    // plugin is built with. Reports land in build/reports/pluginVerifier.
+    pluginVerification {
+        ides {
+            if (localAndroidStudio != null) local(localAndroidStudio) else create("AI", providers.gradleProperty("androidStudioVersion").get())
+        }
+    }
 
     // Only needed for the JetBrains Marketplace; buildPlugin works without any of these. On CI an unset secret
     // arrives as an empty variable, which must count as "not configured" so the plugin is simply left unsigned.
