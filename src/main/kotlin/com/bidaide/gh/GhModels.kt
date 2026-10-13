@@ -54,6 +54,7 @@ data class GhPullRequest(
     val author: GhUser? = null,
     val headRefName: String = "",
     val baseRefName: String = "",
+    val createdAt: String? = null,
     val updatedAt: String? = null,
     val url: String = "",
     val reviewDecision: String? = null,

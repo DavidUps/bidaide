@@ -67,6 +67,13 @@ object AvatarImages {
         return base.substringBefore('?') + "?" + (query + "s=$pixels").joinToString("&")
     }
 
+    /**
+     * Where GitHub serves the picture of any account, with no API call: enough for lists, where only the login is
+     * known. Null for names that are not logins.
+     */
+    fun profilePicture(login: String): String? =
+        if (com.bidaide.gh.GhPeople.isValidLogin(login)) "https://github.com/${login.replace("[bot]", "")}.png" else null
+
     /** The image if it has been downloaded already. */
     fun cached(url: String): Image? = images[url]
 

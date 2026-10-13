@@ -12,6 +12,8 @@ data class GhNotification(
     /** API URL of the subject; missing for some types. */
     val subjectUrl: String?,
     val repository: String,
+    /** Avatar of the repository's owner; the notifications API says nothing about who took part. */
+    val ownerAvatarUrl: String? = null,
 ) {
     /** Issue or pull request number, when the subject is one. */
     val number: Int? get() = subjectUrl?.substringAfterLast('/')?.toIntOrNull()?.takeIf { type == "PullRequest" || type == "Issue" }
@@ -32,6 +34,9 @@ object GhNotifications {
     /** [thisRepo] limits the inbox to the repository gh runs in; [all] includes already read notifications. */
     fun list(thisRepo: Boolean, all: Boolean) =
         listOf("api", "${if (thisRepo) "repos/{owner}/{repo}/" else ""}notifications?per_page=50&all=$all")
+
+    /** The whole inbox, read and unread, of every repository: the views of the inbox tab are filters over this. */
+    fun inbox() = listOf("api", "notifications?per_page=100&all=true")
 
     fun thread(id: String) = listOf("api", "notifications/threads/$id")
 
@@ -61,6 +66,7 @@ object GhNotifications {
             type = subject?.string("type").orEmpty(),
             subjectUrl = subject?.string("url"),
             repository = n.obj("repository")?.string("full_name").orEmpty(),
+            ownerAvatarUrl = n.obj("repository")?.obj("owner")?.string("avatar_url"),
         )
     }
 

@@ -8,7 +8,7 @@ import com.bidaide.github.pr.PullRequestsPanel
 import com.bidaide.github.projects.ProjectsPanel
 import com.bidaide.github.releases.ReleasesPanel
 import com.bidaide.github.runs.RunsPanel
-import com.bidaide.github.ui.GhListDetailPanel
+import com.bidaide.github.ui.LazyTab
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
@@ -16,11 +16,12 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
+import javax.swing.JComponent
 
 class BidaideToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val factory = ContentFactory.getInstance()
-        val panels: List<Pair<String, GhListDetailPanel<*>>> = listOf(
+        val panels: List<Pair<String, JComponent>> = listOf(
             "Pull Requests" to PullRequestsPanel(project), "Issues" to IssuesPanel(project), "Actions" to RunsPanel(project),
             "Releases" to ReleasesPanel(project), "Bandeja" to InboxPanel(project), "Discussions" to DiscussionsPanel(project),
             "Projects" to ProjectsPanel(project),
@@ -28,7 +29,7 @@ class BidaideToolWindowFactory : ToolWindowFactory, DumbAware {
         // Each tab talks to gh on its own, so a tab only loads once it is looked at.
         toolWindow.contentManager.addContentManagerListener(object : ContentManagerListener {
             override fun selectionChanged(event: ContentManagerEvent) {
-                if (event.operation == ContentManagerEvent.ContentOperation.add) (event.content.component as? GhListDetailPanel<*>)?.ensureLoaded()
+                if (event.operation == ContentManagerEvent.ContentOperation.add) (event.content.component as? LazyTab)?.ensureLoaded()
             }
         })
         for ((title, panel) in panels) {
@@ -36,8 +37,8 @@ class BidaideToolWindowFactory : ToolWindowFactory, DumbAware {
             toolWindow.contentManager.addContent(factory.createContent(panel, title, false).apply { isCloseable = false })
         }
         project.messageBus.connect(toolWindow.disposable).subscribe(GhEvents.TOPIC, GhEvents.Listener {
-            panels.forEach { (_, panel) -> if (panel.loaded) panel.reload() }
+            panels.forEach { (_, panel) -> (panel as? LazyTab)?.takeIf { it.loaded }?.reload() }
         })
-        panels.first().second.ensureLoaded()
+        (panels.first().second as LazyTab).ensureLoaded()
     }
 }

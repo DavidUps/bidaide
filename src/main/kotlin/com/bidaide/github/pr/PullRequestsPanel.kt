@@ -17,6 +17,7 @@ import com.bidaide.github.review.PrReviewDiff
 import com.bidaide.github.runs.CiArtifacts
 import com.bidaide.github.ui.GhListDetailPanel
 import com.bidaide.github.ui.Html
+import com.bidaide.github.ui.RichRow
 import com.bidaide.github.ui.MetadataEditor
 import com.bidaide.github.ui.TextPromptDialog
 import com.intellij.icons.AllIcons
@@ -70,29 +71,38 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
 
     override fun detailHtml(item: GhPullRequest): String = PullRequestHtml.render(item)
 
-    /** Author and reviewers with their avatars; the pull request shows at once and the avatars arrive on their own. */
-    override fun detailHeader(item: GhPullRequest): JComponent? {
+    override fun richRow(): (GhPullRequest) -> RichRow = { PullRequestRows.row(it) }
+
+    override val visibleButtons get() = 4
+
+    /** Title, state, and author and reviewers with their avatars. The avatars arrive on their own, after the rest. */
+    override fun detailHeader(item: GhPullRequest): JComponent {
         val people = GhPeople.of(item)
-        if (people.isEmpty) return null
         val workDir = GhRepoContext.workDir(project)
-        return PullRequestPeoplePanel(people, resolve = { who, onResolved -> GitHubUsers.resolveAsync(workDir, item.number, who, onResolved) })
+        val strip = if (people.isEmpty) null else {
+            PullRequestPeoplePanel(people, resolve = { who, onResolved -> GitHubUsers.resolveAsync(workDir, item.number, who, onResolved) })
+        }
+        return PullRequestHeader(item, strip)
     }
 
+    /** The first four stay visible (the first one highlighted); the rest live under "Más". */
     override fun detailButtons(item: GhPullRequest): List<JButton> = buildList {
         val n = item.number
         add(button("Revisar cambios") { PrReviewDiff.open(project, item) })
         add(button("Checkout") { PullRequestActions.checkout(project, item) })
+        if (item.isOpen) {
+            add(button("Aprobar") { review(item, ReviewKind.APPROVE) })
+            add(button("Merge...") { merge(item) })
+            add(button("Pedir cambios") { review(item, ReviewKind.REQUEST_CHANGES) })
+            add(button("Comentar") { comment(item) })
+        }
         add(button("Probar en dispositivo") { PullRequestActions.checkoutAndRun(project, item) })
         add(button("APK del CI") { CiArtifacts.forBranch(project, item.headRefName) })
         if (item.isOpen) {
-            add(button("Aprobar") { review(item, ReviewKind.APPROVE) })
-            add(button("Pedir cambios") { review(item, ReviewKind.REQUEST_CHANGES) })
-            add(button("Comentar") { comment(item) })
             if (item.isDraft) {
                 add(button("Marcar lista") { runAndReload("Marcando PR #$n como lista", GhCommands.prReady(n), "PR #$n lista para revisión") })
             }
             add(button("Actualizar rama") { updateBranch(item) })
-            add(button("Merge...") { merge(item) })
             if (item.autoMergeRequest != null) {
                 add(button("Quitar auto-merge") {
                     runAndReload("Quitando auto-merge de PR #$n", GhCommands.prDisableAutoMerge(n), "Auto-merge desactivado en PR #$n")

@@ -6,6 +6,9 @@ import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhEvents
 import com.bidaide.gh.GhRepoContext
 import com.intellij.icons.AllIcons
+import com.intellij.ide.ui.laf.darcula.ui.DarculaButtonUI
+import com.intellij.openapi.ui.JBMenuItem
+import com.intellij.openapi.ui.JBPopupMenu
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -51,7 +54,7 @@ abstract class GhListDetailPanel<T : Any>(
     /** Optional second combo with quick filters such as "mine"; hidden when empty. */
     scopes: List<FilterOption> = emptyList(),
     private val createText: String? = "Nuevo $noun...",
-) : JPanel(BorderLayout()) {
+) : JPanel(BorderLayout()), LazyTab {
 
     /** A combo entry: [label] is shown, [value] is handed to [listArgs]. */
     class FilterOption(val label: String, val value: String)
@@ -97,18 +100,24 @@ abstract class GhListDetailPanel<T : Any>(
     protected open val searchHint: String get() = "Buscar (sintaxis de GitHub), Enter"
 
     /** False until the first [reload]; tabs are loaded lazily, when first shown. */
-    var loaded = false
+    final override var loaded = false
         private set
-
-    fun ensureLoaded() {
-        if (!loaded) reload()
-    }
     /** Stable identity, used to keep the selection across reloads. */
     protected abstract fun id(item: T): Long
 
     /** How the item is called in progress messages, e.g. "#12". */
     protected open fun title(item: T): String = "#${id(item)}"
     protected abstract fun renderCell(renderer: ColoredListCellRenderer<T>, item: T)
+
+    /**
+     * Two-line rows with labels, status and avatars instead of the single line of [renderCell]; null keeps that
+     * line. Called while this class is still being constructed: do not touch subclass state here, only when the
+     * returned row is asked for.
+     */
+    protected open fun richRow(): ((T) -> RichRow)? = null
+
+    /** How many of [detailButtons] are shown as buttons; the rest go into a "Más" menu. The first one is highlighted. */
+    protected open val visibleButtons: Int get() = Int.MAX_VALUE
     protected abstract fun detailHtml(item: T): String
     protected abstract fun detailButtons(item: T): List<JButton>
     protected open fun create() {}
@@ -149,7 +158,7 @@ abstract class GhListDetailPanel<T : Any>(
     init {
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
         list.emptyText.text = "Cargando..."
-        list.cellRenderer = object : ColoredListCellRenderer<T>() {
+        list.cellRenderer = richRow()?.let { RichRowRenderer(it) } ?: object : ColoredListCellRenderer<T>() {
             override fun customizeCellRenderer(list: JList<out T>, value: T?, index: Int, selected: Boolean, hasFocus: Boolean) {
                 value?.let { renderCell(this, it) }
             }
@@ -230,7 +239,7 @@ abstract class GhListDetailPanel<T : Any>(
             .showInCenterOf(this)
     }
 
-    fun reload() {
+    final override fun reload() {
         loaded = true
         val filter = stateCombo.item?.value.orEmpty()
         val scope = scopeCombo.item?.value.orEmpty()
@@ -302,7 +311,7 @@ abstract class GhListDetailPanel<T : Any>(
         if (item == null) {
             detailPane.text = ""
         } else {
-            detailButtons(item).forEach(buttons::add)
+            showButtons(detailButtons(item))
             if (custom == null) {
                 detailPane.text = Html.page(detailHtml(item))
                 detailPane.caretPosition = 0
@@ -314,6 +323,27 @@ abstract class GhListDetailPanel<T : Any>(
     }
 
     protected val selectedItem: T? get() = list.selectedValue
+
+    /** The main action stands out, a few more sit beside it, and everything else is one click away under "Más". */
+    private fun showButtons(all: List<JButton>) {
+        if (all.size <= visibleButtons + 1) {
+            all.forEach(buttons::add)
+            return
+        }
+        all.first().putClientProperty(DarculaButtonUI.DEFAULT_STYLE_KEY, true)
+        all.take(visibleButtons).forEach(buttons::add)
+        val rest = all.drop(visibleButtons)
+        lateinit var more: JButton
+        more = JButton("Más ▾").apply {
+            addActionListener {
+                val menu = JBPopupMenu()
+                // Each entry presses the real button, so there is one place where an action is defined.
+                rest.forEach { hidden -> menu.add(JBMenuItem(hidden.text).apply { addActionListener { hidden.doClick() } }) }
+                menu.show(more, 0, more.height)
+            }
+        }
+        buttons.add(more)
+    }
 
     protected fun button(text: String, onClick: () -> Unit) = JButton(text).apply { addActionListener { onClick() } }
 

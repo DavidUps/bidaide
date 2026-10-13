@@ -95,8 +95,9 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
 
 ### Pull requests
 
-- **Lista** con filtro por estado, filtros rápidos (mías, pendientes de mi review, asignadas, me mencionan) y
-  búsqueda con la sintaxis de GitHub.
+- **Lista** al estilo de github.com: título con sus labels, quién la abrió y cuándo, ramas, estado de review y de
+  checks, avatares de quien la tiene asignada y última actividad. Con filtro por estado, filtros rápidos (mías,
+  pendientes de mi review, asignadas, me mencionan) y búsqueda con la sintaxis de GitHub.
 - **Crear**: título y cuerpo salen de tus commits o de `PULL_REQUEST_TEMPLATE.md`. Reviewers, asignados, labels,
   borrador. Hace push de la rama antes.
 - **Autor y reviewers con su avatar** de GitHub, y el estado de cada review (aprobó, pidió cambios, pendiente).
@@ -153,7 +154,7 @@ Runs de tu rama o de todas, con refresco automático mientras algo corre.
 | Pestaña | Qué hace |
 |---|---|
 | **Releases** | Crear (tag, notas automáticas, borrador, pre-release), publicar, borrar, descargar archivos. |
-| **Bandeja** | Notificaciones de este repositorio o de todos. Marcar leída, archivar, dejar de seguir. |
+| **Bandeja** | Tus notificaciones como en github.com: vistas por motivo (asignadas, menciones, review solicitada) y por repositorio, todas o sin leer, búsqueda. Marcar leída, archivar, dejar de seguir. |
 | **Discussions** | Listar, leer con respuestas, comentar, crear. |
 | **Projects** | Tablero con una columna por estado; arrastra tarjetas entre columnas, añade issues o PR. |
 
