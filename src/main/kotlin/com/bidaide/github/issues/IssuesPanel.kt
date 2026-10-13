@@ -14,6 +14,7 @@ import com.bidaide.github.ui.Html
 import com.bidaide.github.ui.KanbanBoard
 import com.bidaide.github.ui.Html.esc
 import com.bidaide.github.ui.Markdown
+import com.bidaide.github.ui.RichRow
 import com.bidaide.github.ui.MetadataEditor
 import com.bidaide.github.ui.TextPromptDialog
 import com.bidaide.github.ui.TitleBodyDialog
@@ -33,6 +34,7 @@ import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import java.io.File
 import javax.swing.JButton
+import javax.swing.JComponent
 
 class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
     project, "issue",
@@ -136,16 +138,23 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
         renderer.append("  ${item.author.display()}${if (labels.isEmpty()) "" else " · $labels"}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
     }
 
+    override fun richRow(): (GhIssue) -> RichRow = { IssueRows.row(it) }
+
+    /** "Comentar" stands out, two more stay at hand and the rest go under "Más". */
+    override val visibleButtons get() = 3
+
+    override fun detailHeader(item: GhIssue): JComponent = IssueHeader(item)
+
+    /** Title, state, labels and people are drawn above by [IssueHeader]; this is what there is to read. */
     override fun detailHtml(item: GhIssue): String = buildString {
-        append("<h2>${esc(item.title)} <font color=\"gray\">#${item.number}</font></h2>")
-        append("<p>${esc(item.state)} · <b>${esc(item.author.display())}</b> · ${Html.date(item.updatedAt)} · ${Html.link(item.url, "GitHub")}</p>")
+        val linked = item.closedByPullRequestsReferences.orEmpty()
         val meta = listOfNotNull(
-            item.assignees?.takeIf { it.isNotEmpty() }?.let { "Asignada a: ${esc(it.joinToString())}" },
-            item.milestone?.title?.let { "Milestone: ${esc(it)}" },
-            Html.labels(item.labels).takeIf { it.isNotBlank() },
+            linked.takeIf { it.isNotEmpty() }?.let { prs -> "La cierra " + prs.joinToString(", ") { Html.link(it.url, "PR #${it.number}") } },
+            Html.link(item.url, "Ver en GitHub"),
         )
-        if (meta.isNotEmpty()) append("<p>${meta.joinToString(" · ")}</p>")
-        append(Markdown.toHtml(item.body).ifEmpty { "<p><i>Sin descripción.</i></p>" })
+        append("<p><font color=\"gray\">${meta.joinToString(" &nbsp;·&nbsp; ")}</font></p>")
+        append(Html.heading("Descripción"))
+        append(Markdown.toHtml(item.body).ifEmpty { "<p><font color=\"gray\"><i>Sin descripción.</i></font></p>" })
         val timeline = item.timeline
         append(if (timeline != null) Html.section("Actividad", Html.timeline(timeline)) else Html.section("Comentarios", Html.comments(item.comments)))
     }

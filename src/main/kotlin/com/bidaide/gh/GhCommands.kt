@@ -6,7 +6,8 @@ object GhCommands {
         "labels,assignees,statusCheckRollup"
     const val PR_VIEW_FIELDS = "$PR_LIST_FIELDS,body,additions,deletions,changedFiles,files,commits,reviews,comments," +
         "mergeable,baseRefOid,headRefOid,autoMergeRequest,milestone,reviewRequests,latestReviews"
-    const val ISSUE_LIST_FIELDS = "number,title,state,author,labels,assignees,updatedAt,url,milestone"
+    const val ISSUE_LIST_FIELDS = "number,title,state,stateReason,author,labels,assignees,createdAt,updatedAt,url,milestone," +
+        "closedByPullRequestsReferences"
     const val ISSUE_VIEW_FIELDS = "$ISSUE_LIST_FIELDS,body,comments"
     private const val LIST_LIMIT = "100"
 

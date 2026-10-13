@@ -135,8 +135,10 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
 
 ### Issues
 
-Listar, crear, comentar, cerrar, reabrir y editar labels / asignados / milestone. **Crear rama** enlazada a la
-issue.
+Lista al estilo de github.com: título con sus labels, quién la abrió y cuándo, PR que la cierran, avatares de
+los asignados y última actividad. El detalle lleva cabecera con estado, labels, autor y asignados.
+
+Crear, comentar, cerrar, reabrir y editar labels / asignados / milestone. **Crear rama** enlazada a la issue.
 
 **Tablero**: el botón *Ver como tablero* cambia la lista por columnas de tarjetas, agrupadas por label, asignado,
 milestone o estado. Arrastra una tarjeta a otra columna y la issue cambia en GitHub. Desde el editor, **Crear issue desde selección**: un `TODO` pasa a ser el título y el cuerpo lleva el
