@@ -79,6 +79,7 @@
                 <keyboard-shortcut keymap="$default" first-keystroke="shift ctrl alt A"/>
             </action>
             <group id="Bidaide.Adb.Operations" text="ADB" popup="true">
+                <group id="Bidaide.Adb.Favorites" class="com.bidaide.adb.AdbFavoritesGroup"/>
                 <action id="Bidaide.Adb.Uninstall" class="com.bidaide.adb.AdbUninstallAction" text="ADB: Desinstalar app"/>
                 <action id="Bidaide.Adb.Kill" class="com.bidaide.adb.AdbKillAction" text="ADB: Matar app"/>
                 <action id="Bidaide.Adb.Start" class="com.bidaide.adb.AdbStartAction" text="ADB: Iniciar app"/>
@@ -139,6 +140,8 @@
                 <group id="Bidaide.Adb.Custom" class="com.bidaide.adb.AdbCustomCommandsGroup"/>
                 <separator/>
                 <action id="Bidaide.Adb.ForgetSelection" class="com.bidaide.adb.AdbForgetSelectionAction" text="ADB: Cambiar dispositivo / aplicación"/>
+                <action id="Bidaide.Adb.ManageFavorites" class="com.bidaide.adb.AdbManageFavoritesAction" text="ADB: Gestionar favoritos..."
+                        description="Elige qué operaciones ADB aparecen primero en el popup"/>
             </group>
         </group>
     </actions>
