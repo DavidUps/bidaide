@@ -62,7 +62,7 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
         val group = DefaultActionGroup(
             action("¿Cumple los requisitos de merge?") { showMergeStatus(pr) },
             action("Revisar cambios") { PrReviewDiff.open(project, pr) },
-            action("Probar en dispositivo") { PullRequestActions.checkoutAndRun(project, pr) },
+            action("Probar en dispositivo") { PullRequestActions.testOnDevice(project, pr) },
             action("Ver en Bidaide") { ToolWindowManager.getInstance(project).getToolWindow("Bidaide")?.activate(null) },
             action("Abrir en navegador") { BrowserUtil.browse(pr.url) },
             action("Actualizar estado") { service.refresh() },

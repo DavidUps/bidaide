@@ -106,7 +106,12 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
 - **Detalle** con la actividad completa en orden: comentarios, reviews, commits, labels, cierres.
 - **Acciones**: checkout, aprobar, pedir cambios, comentar, marcar lista, actualizar rama (merge o rebase),
   merge con auto-merge opcional, editar labels / asignados / reviewers / milestone, cerrar y reabrir.
-- **Probar en dispositivo**: checkout de la PR y lanza tu run configuration.
+- **Probar en dispositivo**: elige cómo. *En un worktree aparte* (por defecto) baja la PR a una carpeta propia del
+  IDE sin tocar tu rama ni tus cambios, la compila con Gradle (tu módulo de app y variante, tu JDK de Gradle y una
+  copia de tu `local.properties`), la instala y la abre en el dispositivo; la build sale en una pestaña de la
+  ventana Bidaide. Los archivos que no están en git (`google-services.json`, claves...) no se copian. *Checkout en tu
+  copia* hace checkout de la PR y lanza tu run configuration, y avisa si tienes cambios sin commit. Los worktrees se
+  borran con *Tools → Bidaide → GitHub → Borrar worktrees de PRs*.
 - **APK del CI**: descarga el artifact del último run de la rama y ofrece instalarlo.
 
 ### Revisión de código

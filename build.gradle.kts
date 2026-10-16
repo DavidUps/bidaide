@@ -33,7 +33,7 @@ val localAndroidStudio = providers.gradleProperty("androidStudioPath").orNull?.t
 dependencies {
     intellijPlatform {
         if (localAndroidStudio != null) local(localAndroidStudio) else androidStudio(providers.gradleProperty("androidStudioVersion"))
-        bundledPlugins("org.jetbrains.android", "Git4Idea")
+        bundledPlugins("org.jetbrains.android", "Git4Idea", "com.intellij.gradle")
         testFramework(TestFrameworkType.Platform)
         pluginVerifier()
     }
