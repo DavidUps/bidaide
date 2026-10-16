@@ -45,6 +45,8 @@ intellijPlatform {
     providers.gradleProperty("sandboxDir").orNull?.let { sandboxContainer = layout.projectDirectory.dir(it) }
 
     pluginConfiguration {
+        // "What's New" on the Marketplace and in Settings > Plugins. Edit change-notes.html, newest version first.
+        changeNotes = providers.fileContents(layout.projectDirectory.file("change-notes.html")).asText
         ideaVersion {
             sinceBuild = "261"
             untilBuild = provider { null }
