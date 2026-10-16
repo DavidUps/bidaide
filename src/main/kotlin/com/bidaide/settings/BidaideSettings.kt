@@ -27,6 +27,9 @@ class BidaideSettings : PersistentStateComponent<BidaideSettings.State> {
         /** Device setting presets, one per line as `Name = key=value, key=value`. See DeviceProfile. */
         var deviceProfiles: String = ""
 
+        /** Action ids pinned at the top of the ADB popup, one per line, in display order. See AdbFavorites. */
+        var favoriteAdbActions: String = ""
+
         /** Canned review comments, one per line as `Name = text`; `\n` in the text is a line break. */
         var savedReplies: String = ""
     }
@@ -67,6 +70,12 @@ class BidaideSettings : PersistentStateComponent<BidaideSettings.State> {
         get() = state.deviceProfiles
         set(value) {
             state.deviceProfiles = value
+        }
+
+    var favoriteAdbActions: String
+        get() = state.favoriteAdbActions
+        set(value) {
+            state.favoriteAdbActions = value
         }
 
     var savedReplies: String

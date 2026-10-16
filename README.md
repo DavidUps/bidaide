@@ -183,6 +183,8 @@ Pulsa el atajo y escribe: el popup filtra mientras tecleas. También en **Tools 
 
 ### Hecho a tu medida
 
+- **Favoritos**: con **ADB: Gestionar favoritos...** (en el propio popup o en Settings) marcas las operaciones que
+  más usas y aparecen siempre las primeras del popup, bajo *Favoritos*.
 - **Comandos propios**: define en Settings los tuyos (`Nombre = comando`, con `{package}` como id de la app) y
   aparecen en el popup.
 - **Perfiles de dispositivo**: varios ajustes de golpe.

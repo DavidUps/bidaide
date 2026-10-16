@@ -1,5 +1,7 @@
 package com.bidaide.settings
 
+import com.bidaide.adb.AdbFavoritesDialog
+import com.bidaide.adb.AdbFavoritesStore
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhExecutable
 import com.intellij.openapi.application.ApplicationManager
@@ -20,6 +22,7 @@ class BidaideConfigurable : BoundConfigurable("Bidaide") {
     override fun createPanel(): DialogPanel {
         val settings = BidaideSettings.getInstance()
         val status = JLabel(" ")
+        val favorites = JLabel(describeFavorites())
         return panel {
             group("GitHub CLI") {
                 row("Ruta de gh:") {
@@ -51,6 +54,12 @@ class BidaideConfigurable : BoundConfigurable("Bidaide") {
                 }
             }
             group("ADB") {
+                row("Favoritos:") {
+                    button("Gestionar favoritos...") {
+                        if (AdbFavoritesDialog.edit(null)) favorites.text = describeFavorites()
+                    }.comment("Aparecen primero en el popup de ADB. Se guardan al aceptar el diálogo.")
+                    cell(favorites)
+                }
                 row("Carpeta de capturas:") {
                     textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle("Carpeta de capturas"))
                         .bindText(settings::captureDir)
@@ -71,6 +80,12 @@ class BidaideConfigurable : BoundConfigurable("Bidaide") {
                 }
             }
         }
+    }
+
+    private fun describeFavorites(): String = when (val count = AdbFavoritesStore.ids().size) {
+        0 -> "Ninguno"
+        1 -> "1 operación"
+        else -> "$count operaciones"
     }
 
     private fun describeGhStatus(): String {
