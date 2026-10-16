@@ -13,6 +13,9 @@
     <depends>com.intellij.modules.androidstudio</depends>
     <depends>org.jetbrains.android</depends>
     <depends>Git4Idea</depends>
+    <!-- Bundled with Android Studio (the Android plugin needs it). Gives the project's Gradle JDK, used to build a
+         pull request in its own worktree. -->
+    <depends>com.intellij.gradle</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Bidaide" displayType="BALLOON"/>
@@ -65,6 +68,9 @@
                         text="Clonar repositorio..."/>
                 <action id="Bidaide.GitHub.Publish" class="com.bidaide.github.actions.PublishToGitHubAction"
                         text="Publicar proyecto en GitHub..."/>
+                <action id="Bidaide.GitHub.DeletePrWorktrees" class="com.bidaide.github.pr.DeletePrWorktreesAction"
+                        text="Borrar worktrees de PRs..."
+                        description="Borra los worktrees donde «Probar en dispositivo» compila las PRs"/>
             </group>
             <action id="Bidaide.Adb.Popup" class="com.bidaide.adb.AdbPopupAction" text="Operaciones ADB..."
                     description="Muestra todas las operaciones ADB en un popup">

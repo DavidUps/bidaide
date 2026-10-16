@@ -96,7 +96,7 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
             add(button("Pedir cambios") { review(item, ReviewKind.REQUEST_CHANGES) })
             add(button("Comentar") { comment(item) })
         }
-        add(button("Probar en dispositivo") { PullRequestActions.checkoutAndRun(project, item) })
+        add(button("Probar en dispositivo") { PullRequestActions.testOnDevice(project, item) })
         add(button("APK del CI") { CiArtifacts.forBranch(project, item.headRefName) })
         if (item.isOpen) {
             if (item.isDraft) {

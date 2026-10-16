@@ -1,0 +1,255 @@
+package com.bidaide.github.pr
+
+import com.android.ddmlib.IDevice
+import com.android.tools.idea.gradle.project.model.GradleAndroidModel
+import com.android.tools.idea.model.AndroidModel
+import com.android.tools.idea.projectsystem.getAndroidFacets
+import com.android.tools.idea.projectsystem.gradle.getGradleProjectPath
+import com.bidaide.Notifier
+import com.bidaide.adb.AdbShell
+import com.bidaide.adb.AdbTargetResolver
+import com.bidaide.adb.AdbTasks
+import com.bidaide.gh.GhCli
+import com.bidaide.gh.GhCommands
+import com.bidaide.gh.GhException
+import com.bidaide.gh.GhPullRequest
+import com.bidaide.gh.GhRepoContext
+import com.bidaide.github.actions.GitHubProjectAction
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.filters.TextConsoleBuilderFactory
+import com.intellij.execution.process.ColoredProcessHandler
+import com.intellij.execution.process.ProcessEvent
+import com.intellij.execution.process.ProcessListener
+import com.intellij.execution.ui.ConsoleViewContentType
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.util.Computable
+import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.SystemInfo
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.ui.content.ContentFactory
+import git4idea.commands.Git
+import git4idea.commands.GitCommand
+import git4idea.commands.GitLineHandler
+import git4idea.repo.GitRepository
+import org.jetbrains.plugins.gradle.service.GradleInstallationManager
+import org.jetbrains.plugins.gradle.settings.GradleSettings
+import java.io.File
+
+/**
+ * "Probar en dispositivo" without touching the user's checkout: the pull request's head is fetched into a detached
+ * worktree under the IDE system directory, built there with the project's Gradle wrapper and JDK, and started on
+ * the device chosen through [AdbTargetResolver].
+ */
+object PrWorktreeRun {
+
+    /** What the background preparation hands to the EDT: the worktree and the Gradle build ready to start. */
+    private class Prepared(val dir: File, val handler: ColoredProcessHandler, val header: String, val copiedLocalProperties: Boolean)
+
+    /** Must be called on the EDT. */
+    fun start(project: Project, pr: GhPullRequest) {
+        val repository = GhRepoContext.repository(project)
+            ?: return GhCli.report(project, "Probar PR #${pr.number}", GhException("Este proyecto no tiene ningún repositorio git."))
+        val apps = appModules(project)
+        if (apps.isEmpty()) {
+            Notifier.warn(
+                project, "PR #${pr.number}",
+                "No se pudo leer el módulo de la app (¿falta sincronizar Gradle?). Se usa ${PrWorktrees.installTask(PrWorktrees.FALLBACK_MODULE)} " +
+                    "y la app no se iniciará sola al terminar.",
+            )
+        }
+        // The app is asked for (when there are several) the same way as for any ADB operation, and names the module to build.
+        AdbTargetResolver.resolve(project, needsPackage = apps.any { it.applicationId != null }) { devices, packageName ->
+            val module = apps.firstOrNull { it.applicationId == packageName } ?: apps.firstOrNull() ?: PrWorktrees.FALLBACK_MODULE
+            // With one device Gradle must install only there; "all devices" is what the install task does anyway.
+            val serial = devices.singleOrNull()?.serialNumber
+            GhCli.async(
+                project, "Preparando worktree de PR #${pr.number}",
+                work = { prepare(project, repository, pr.number, module, serial) },
+            ) { prepared -> showBuild(project, pr, prepared, devices, module.applicationId) }
+        }
+    }
+
+    /** The Android application modules with their Gradle path and the build variant selected in the IDE. */
+    private fun appModules(project: Project): List<PrAppModule> =
+        project.getAndroidFacets().filter { it.configuration.isAppProject }.mapNotNull { facet ->
+            val model = GradleAndroidModel.get(facet) ?: return@mapNotNull null
+            val path = facet.module.getGradleProjectPath()?.path ?: return@mapNotNull null
+            val id = AndroidModel.get(facet)?.applicationId?.takeIf { it.isNotBlank() && it != AndroidModel.UNINITIALIZED_APPLICATION_ID }
+            PrAppModule(path, model.selectedVariantName, id)
+        }.distinctBy { it.gradlePath }
+
+    /** Blocking: fetches the head, creates or updates the worktree and starts (but does not yet read) the Gradle build. */
+    private fun prepare(project: Project, repository: GitRepository, number: Int, module: PrAppModule, serial: String?): Prepared {
+        val repoRoot = VfsUtilCore.virtualToIoFile(repository.root)
+        val commit = fetchHead(project, repository, repoRoot, number)
+        val dir = PrWorktrees.worktreeDir(File(PathManager.getSystemPath()), repoRoot.path, number)
+        checkoutWorktree(project, repoRoot, dir, commit)
+
+        val linkedPath = GradleSettings.getInstance(project).linkedProjectsSettings.firstOrNull()?.externalProjectPath ?: project.basePath
+        val userGradleRoot = linkedPath?.let(::File) ?: repoRoot
+        val inRepo = PrWorktrees.gradleRootInRepo(repoRoot, userGradleRoot)
+            ?: throw GhException("El proyecto Gradle ($userGradleRoot) está fuera del repositorio git; no se puede compilar en un worktree.")
+        val gradleRoot = if (inRepo.isEmpty()) dir else File(dir, inRepo)
+
+        // sdk.dir and friends are never committed; without them the build cannot find the Android SDK.
+        val localProperties = File(userGradleRoot, "local.properties")
+        val target = File(gradleRoot, "local.properties")
+        if (localProperties.isFile && !target.exists()) localProperties.copyTo(target)
+
+        val wrapper = File(gradleRoot, PrWorktrees.wrapperName(SystemInfo.isWindows))
+        if (!wrapper.isFile) throw GhException("La PR no tiene ${wrapper.name} en ${gradleRoot.path}; hace falta el wrapper de Gradle para compilar.")
+        // The JDK the IDE gives Gradle for this project (Settings → Build Tools → Gradle), so the build behaves the same.
+        val jdk = linkedPath?.let {
+            ApplicationManager.getApplication().runReadAction(Computable { GradleInstallationManager.getInstance().getGradleJvmPath(project, it) })
+        }
+        val task = PrWorktrees.installTask(module)
+
+        val commandLine = GeneralCommandLine(PrWorktrees.buildCommand(wrapper, task)).withWorkDirectory(gradleRoot).withCharset(Charsets.UTF_8)
+        jdk?.let { commandLine.withEnvironment("JAVA_HOME", it) }
+        serial?.let { commandLine.withEnvironment("ANDROID_SERIAL", it) }
+        val header = buildString {
+            appendLine("PR #$number en ${commit.take(10)} · worktree ${dir.path}")
+            appendLine("JDK: ${jdk ?: "el de JAVA_HOME"}${serial?.let { " · dispositivo $it" }.orEmpty()}")
+            if (!localProperties.isFile) appendLine("Tu proyecto no tiene local.properties: no se ha copiado nada.")
+            appendLine("> ${wrapper.name} $task")
+        }
+        return Prepared(dir, ColoredProcessHandler(commandLine), header, localProperties.isFile)
+    }
+
+    /** Fetches `pull/<n>/head` from the remote `gh` uses, without touching any local branch, and returns its commit. */
+    private fun fetchHead(project: Project, repository: GitRepository, repoRoot: File, number: Int): String {
+        val nameWithOwner = GhCli.run(repoRoot, GhCommands.repoName()).trim()
+        val remotes = repository.remotes.associate { it.name to it.urls }
+        val remote = PrWorktrees.remoteFor(remotes, nameWithOwner)
+        val source = remote ?: PrWorktrees.repoUrl(nameWithOwner)
+        git(project, repoRoot, GitCommand.FETCH, PrWorktrees.fetchArgs(source, number), urls = remotes[remote] ?: listOf(source))
+        return git(project, repoRoot, GitCommand.REV_PARSE, listOf("FETCH_HEAD")).firstOrNull { it.isNotBlank() }?.trim()
+            ?: throw GhException("git no devolvió el commit de la PR #$number")
+    }
+
+    /** Reuses the PR's worktree when git still knows it; otherwise (re)creates it detached at [commit]. */
+    private fun checkoutWorktree(project: Project, repoRoot: File, dir: File, commit: String) {
+        if (dir.isDirectory && isRegistered(project, repoRoot, dir)) {
+            git(project, dir, GitCommand.CHECKOUT, PrWorktrees.updateArgs(commit))
+            return
+        }
+        // Forgets a worktree whose folder was deleted by hand, so the add below does not refuse the path.
+        git(project, repoRoot, GitCommand.WORKTREE, listOf("prune"))
+        val root = PrWorktrees.root(File(PathManager.getSystemPath()))
+        // A folder git does not know as a worktree is a leftover of ours (it is inside bidaide-worktrees).
+        if (dir.exists() && PrWorktrees.isInside(root, dir)) FileUtil.delete(dir)
+        dir.parentFile.mkdirs()
+        git(project, repoRoot, GitCommand.WORKTREE, PrWorktrees.addArgs(dir, commit))
+    }
+
+    private fun isRegistered(project: Project, repoRoot: File, dir: File): Boolean =
+        listWorktrees(project, repoRoot).any { File(it).canonicalFile == dir.canonicalFile }
+
+    private fun listWorktrees(project: Project, repoRoot: File): List<String> =
+        PrWorktrees.parseWorktreeList(git(project, repoRoot, GitCommand.WORKTREE, listOf("list", "--porcelain")).joinToString("\n"))
+
+    /** Blocking. Output lines; a failure becomes a [GhException] so [GhCli.async] reports it like any other. */
+    private fun git(project: Project, dir: File, command: GitCommand, args: List<String>, urls: List<String>? = null): List<String> {
+        val handler = GitLineHandler(project, dir, command)
+        urls?.let(handler::setUrls)
+        handler.addParameters(args)
+        val result = Git.getInstance().runCommand(handler)
+        if (!result.success()) throw GhException("git ${command.name()} falló: ${result.errorOutputAsJoinedString}")
+        return result.output
+    }
+
+    /** Streams the build into a closable tab of the Bidaide tool window; on success, starts the app on the devices. */
+    private fun showBuild(project: Project, pr: GhPullRequest, prepared: Prepared, devices: List<IDevice>, packageName: String?) {
+        val handler = prepared.handler
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Bidaide")
+        if (toolWindow == null) {
+            handler.destroyProcess()
+            Notifier.warn(project, "PR #${pr.number}", "No se encuentra la ventana Bidaide.")
+            return
+        }
+        val console = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
+        console.print(prepared.header + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+        console.attachToProcess(handler)
+        val content = ContentFactory.getInstance().createContent(console.component, "PR #${pr.number}: build", false)
+        content.isCloseable = true
+        Disposer.register(content, console)
+        var closed = false
+        // Closing the tab stops the build.
+        Disposer.register(content) {
+            closed = true
+            if (!handler.isProcessTerminated) handler.destroyProcess()
+        }
+        handler.addProcessListener(object : ProcessListener {
+            override fun processTerminated(event: ProcessEvent) {
+                ApplicationManager.getApplication().invokeLater {
+                    when {
+                        project.isDisposed || closed -> Unit
+                        event.exitCode != 0 -> Notifier.error(
+                            project, "PR #${pr.number}: la build falló (código ${event.exitCode})",
+                            PrWorktrees.failureHint(prepared.copiedLocalProperties) + "<br>Worktree: ${prepared.dir.path}",
+                        )
+                        packageName == null -> Notifier.info(project, "PR #${pr.number}", "Instalada. Ábrela a mano en el dispositivo.")
+                        else -> AdbTasks.run(project, "PR #${pr.number}", devices, packageName) { context ->
+                            AdbShell.start(context.device, packageName)
+                            "PR #${pr.number} instalada e iniciada"
+                        }
+                    }
+                }
+            }
+        })
+        toolWindow.contentManager.addContent(content)
+        toolWindow.contentManager.setSelectedContent(content)
+        toolWindow.activate(null)
+        handler.startNotify()
+    }
+
+    /** Deletes this repository's PR worktrees after asking; the user's checkout and other worktrees are never touched. */
+    fun deleteWorktrees(project: Project) {
+        val repository = GhRepoContext.repository(project)
+            ?: return Notifier.warn(project, "Worktrees de PRs", "Este proyecto no tiene ningún repositorio git.")
+        val repoRoot = VfsUtilCore.virtualToIoFile(repository.root)
+        val systemDir = File(PathManager.getSystemPath())
+        val root = PrWorktrees.root(systemDir)
+        val repoDir = PrWorktrees.repoDir(systemDir, repoRoot.path)
+        GhCli.async(
+            project, "Buscando worktrees de PRs",
+            work = { PrWorktrees.ownWorktrees(repoDir, listWorktrees(project, repoRoot)) },
+        ) { worktrees ->
+            val leftovers = repoDir.listFiles().orEmpty().count { dir -> worktrees.none { it.canonicalFile == dir.canonicalFile } }
+            if (worktrees.isEmpty() && leftovers == 0) {
+                Notifier.info(project, "Worktrees de PRs", "No hay worktrees de PRs de este repositorio.")
+                return@async
+            }
+            val answer = Messages.showOkCancelDialog(
+                project,
+                "Se borrarán ${worktrees.size + leftovers} carpeta(s) en ${repoDir.path}, con lo compilado en ellas. " +
+                    "Tu copia del repositorio y tus cambios no se tocan.",
+                "Borrar worktrees de PRs", "Borrar", "Cancelar", Messages.getWarningIcon(),
+            )
+            if (answer != Messages.OK) return@async
+            GhCli.async(
+                project, "Borrando worktrees de PRs",
+                work = {
+                    worktrees.forEach { git(project, repoRoot, GitCommand.WORKTREE, PrWorktrees.removeArgs(it)) }
+                    git(project, repoRoot, GitCommand.WORKTREE, listOf("prune"))
+                    // Folders git had already forgotten; only ever inside bidaide-worktrees.
+                    repoDir.listFiles().orEmpty().filter { PrWorktrees.isInside(root, it) }.forEach(FileUtil::delete)
+                    if (PrWorktrees.isInside(root, repoDir) && repoDir.listFiles().isNullOrEmpty()) FileUtil.delete(repoDir)
+                },
+            ) { Notifier.info(project, "Worktrees de PRs", "Worktrees borrados.") }
+        }
+    }
+}
+
+/** Tools → Bidaide → GitHub → "Borrar worktrees de PRs...". */
+class DeletePrWorktreesAction : GitHubProjectAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        PrWorktreeRun.deleteWorktrees(e.project ?: return)
+    }
+}
