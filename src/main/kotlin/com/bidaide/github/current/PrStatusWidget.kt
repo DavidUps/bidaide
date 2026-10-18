@@ -25,6 +25,7 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.WindowManager
+import com.intellij.ui.AnimatedIcon
 import javax.swing.Icon
 
 class PrStatusWidgetFactory : StatusBarWidgetFactory {
@@ -50,7 +51,11 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
 
     override fun dispose() {}
 
-    override fun getIcon(): Icon? = service.pullRequest?.let { AllIcons.Vcs.Vendors.Github }
+    /**
+     * The platform spinner while checks of an open pull request run, the GitHub mark otherwise. The spinner only
+     * repaints the widget, and only while the status bar is showing.
+     */
+    override fun getIcon(): Icon? = service.pullRequest?.let { icon(it) }
 
     /** An empty value hides the widget, which is what we want on branches without a pull request. */
     override fun getSelectedValue(): String? = service.pullRequest?.let { text(it, openThreads()) }
@@ -98,6 +103,8 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
 
     companion object {
         const val ID = "Bidaide.PrStatus"
+
+        fun icon(pr: GhPullRequest): Icon = if (pr.isOpen && pr.checksRunning) AnimatedIcon.Default.INSTANCE else AllIcons.Vcs.Vendors.Github
 
         fun text(pr: GhPullRequest, openThreads: Int): String = buildString {
             append("#${pr.number}")
