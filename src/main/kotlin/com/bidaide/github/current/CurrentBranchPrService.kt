@@ -70,7 +70,9 @@ class CurrentBranchPrService(private val project: Project) : Disposable {
         } catch (e: Exception) {
             thisLogger().info("Could not refresh the pull request of the current branch", e)
         } finally {
-            if (!project.isDisposed) alarm.addRequest({ reload() }, PERIODIC_MILLIS)
+            // While checks run, look again sooner, so the status bar stops its spinner soon after they finish.
+            val running = pullRequest?.let { it.isOpen && it.checksRunning } == true
+            if (!project.isDisposed) alarm.addRequest({ reload() }, if (running) RUNNING_CHECKS_MILLIS else PERIODIC_MILLIS)
         }
     }
 
@@ -106,5 +108,6 @@ class CurrentBranchPrService(private val project: Project) : Disposable {
         private const val STARTUP_DELAY = 5_000
         private const val REPO_CHANGE_DELAY = 2_000
         private const val PERIODIC_MILLIS = 3 * 60 * 1000
+        private const val RUNNING_CHECKS_MILLIS = 60 * 1000
     }
 }

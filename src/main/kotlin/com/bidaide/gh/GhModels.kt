@@ -44,6 +44,9 @@ data class GhCheck(
     val url: String? get() = detailsUrl ?: targetUrl
     val passed: Boolean get() = result in setOf("SUCCESS", "NEUTRAL", "SKIPPED")
     val failed: Boolean get() = result in setOf("FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE")
+
+    /** Queued or still running; a result neither passed nor failed but final (STALE, say) does not count. */
+    val running: Boolean get() = result in setOf("PENDING", "EXPECTED", "QUEUED", "REQUESTED", "WAITING", "IN_PROGRESS")
 }
 
 data class GhPullRequest(
@@ -87,6 +90,7 @@ data class GhPullRequest(
     val checks: List<GhCheck> get() = statusCheckRollup.orEmpty()
     val checksFailed: Boolean get() = checks.any { it.failed }
     val checksPassed: Boolean get() = checks.isNotEmpty() && checks.all { it.passed }
+    val checksRunning: Boolean get() = checks.any { it.running }
 
     val isOpen: Boolean get() = state.equals("OPEN", ignoreCase = true)
 }

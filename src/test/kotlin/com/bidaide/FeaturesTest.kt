@@ -13,9 +13,12 @@ import com.bidaide.github.current.PrWatch
 import com.bidaide.github.pr.PullRequestGit
 import com.bidaide.github.runs.CiPathFilter
 import com.bidaide.github.runs.WorkflowDispatch
+import com.intellij.icons.AllIcons
+import com.intellij.ui.AnimatedIcon
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -134,6 +137,18 @@ class FeaturesTest {
         assertEquals("#3 … checks · review required", PrStatusWidget.text(pr(3, "REVIEW_REQUIRED", passed, running), 0))
         assertEquals("#4", PrStatusWidget.text(pr(4), 0))
         assertEquals("#5 merged", PrStatusWidget.text(pr(5).copy(state = "MERGED"), 2))
+    }
+
+    @Test
+    fun `status widget spins only while checks of an open pull request run`() {
+        assertTrue(pr(1, null, passed, running).checksRunning)
+        assertFalse(pr(2, null, passed, failed).checksRunning)
+        // Final results that are neither a pass nor a failure must not keep the spinner going.
+        assertFalse(GhCheck(name = "old", status = "COMPLETED", conclusion = "STALE").running)
+        assertTrue(GhCheck(context = "ci/external", state = "PENDING").running)
+        assertSame(AnimatedIcon.Default.INSTANCE, PrStatusWidget.icon(pr(3, null, failed, running)))
+        assertSame(AllIcons.Vcs.Vendors.Github, PrStatusWidget.icon(pr(4, null, passed)))
+        assertSame(AllIcons.Vcs.Vendors.Github, PrStatusWidget.icon(pr(5, null, running).copy(state = "CLOSED")))
     }
 
     @Test
