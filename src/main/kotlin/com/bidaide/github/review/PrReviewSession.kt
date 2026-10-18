@@ -1,5 +1,6 @@
 package com.bidaide.github.review
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhJson
@@ -76,7 +77,7 @@ class PrReviewSession(
         }
     }
 
-    fun refresh() = mutate("Actualizando revisión de PR #$number") {}
+    fun refresh() = mutate(BidaideBundle.message("github.review.refreshing", number)) {}
 
     /** Blocking re-read of the threads, for background pollers. Listeners are notified on the EDT. */
     fun reloadBlocking() {
@@ -130,7 +131,7 @@ class PrReviewSession(
         if (value) viewed += path else viewed -= path
         fireChanged()
         GhCli.async(
-            project, "Marcando archivo como ${if (value) "visto" else "no visto"}",
+            project, if (value) BidaideBundle.message("github.review.markingViewed") else BidaideBundle.message("github.review.markingNotViewed"),
             onFailure = {
                 if (value) viewed -= path else viewed += path
                 fireChanged()

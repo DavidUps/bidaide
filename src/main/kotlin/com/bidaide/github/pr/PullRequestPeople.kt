@@ -1,5 +1,6 @@
 package com.bidaide.github.pr
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhPeople
 import com.bidaide.gh.GhPrPeople
@@ -58,12 +59,12 @@ class PullRequestPeoplePanel(
     init {
         isOpaque = false
         people.author?.let {
-            add(caption("Autor"))
+            add(caption(BidaideBundle.message("github.pr.people.author")))
             add(chip(cached(it.login) ?: it, ""))
         }
         if (people.reviewers.isNotEmpty()) {
             if (people.author != null) add(Box.createHorizontalStrut(12))
-            add(caption("Reviewers"))
+            add(caption(BidaideBundle.message("github.pr.people.reviewers")))
             for (reviewer in people.reviewers) {
                 add(chip(cached(reviewer.user.login) ?: reviewer.user, symbol(reviewer.status) + " " + reviewer.status.label))
             }

@@ -1,5 +1,6 @@
 package com.bidaide.adb
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
@@ -39,9 +40,9 @@ object Sqlite {
         val driver = try {
             Class.forName("org.sqlite.JDBC").getDeclaredConstructor().newInstance() as Driver
         } catch (e: ReflectiveOperationException) {
-            throw AdbException("Este IDE no incluye el driver de SQLite.")
+            throw AdbException(BidaideBundle.message("adb.db.noDriver"))
         }
-        return driver.connect("jdbc:sqlite:${file.path}", Properties()) ?: throw AdbException("No se pudo abrir ${file.name}")
+        return driver.connect("jdbc:sqlite:${file.path}", Properties()) ?: throw AdbException(BidaideBundle.message("adb.db.cannotOpen", file.name))
     }
 
     fun tables(file: File): List<String> =
@@ -53,7 +54,7 @@ object Sqlite {
     fun run(file: File, sql: String): Result = open(file).use { connection ->
         connection.createStatement().use { statement ->
             if (!statement.execute(sql)) {
-                return Result(emptyList(), emptyList(), false, "${statement.updateCount} filas afectadas (solo en la copia local)")
+                return Result(emptyList(), emptyList(), false, BidaideBundle.message("adb.db.updated", statement.updateCount))
             }
             statement.resultSet.use { rows ->
                 val meta = rows.metaData
@@ -73,7 +74,7 @@ object Sqlite {
                         }
                     }
                 }
-                Result(columns, data, truncated, "${data.size} filas${if (truncated) " (hay más; añade LIMIT o WHERE)" else ""}")
+                Result(columns, data, truncated, if (truncated) BidaideBundle.message("adb.db.rowsTruncated", data.size) else BidaideBundle.message("adb.db.rows", data.size))
             }
         }
     }
@@ -87,17 +88,17 @@ class AdbDatabaseAction : AdbBaseAction() {
             val packageName = pkg ?: return@resolve
             val device = devices.first()
             AdbTasks.fetch(
-                project, "Bases de datos de $packageName",
+                project, BidaideBundle.message("adb.db.title", packageName),
                 work = {
                     AdbFiles.pullDatabases(device, packageName).walkTopDown()
                         .filter { it.isFile && !COMPANIONS.any(it.name::endsWith) && it.extension != "tar" }.sortedBy { it.name }.toList()
                 },
             ) { files ->
                 when (files.size) {
-                    0 -> Notifier.info(project, "ADB", "$packageName no tiene bases de datos en ${AdbTargetResolver.deviceLabel(device)}.")
+                    0 -> Notifier.info(project, "ADB", BidaideBundle.message("adb.db.none", packageName, AdbTargetResolver.deviceLabel(device)))
                     1 -> DatabaseBrowser(project, packageName, files.single()).show()
                     else -> JBPopupFactory.getInstance().createPopupChooserBuilder(files)
-                        .setTitle("Bases de datos de $packageName")
+                        .setTitle(BidaideBundle.message("adb.db.title", packageName))
                         .setRenderer(com.intellij.ui.SimpleListCellRenderer.create("") { it.name })
                         .setItemChosenCallback { DatabaseBrowser(project, packageName, it).show() }
                         .createPopup()
@@ -124,9 +125,9 @@ private class DatabaseBrowser(project: Project, packageName: String, private val
     private val status = JBLabel(" ")
 
     init {
-        title = "${file.name} — $packageName (copia local)"
+        title = BidaideBundle.message("adb.db.browserTitle", file.name, packageName)
         isModal = false
-        setOKButtonText("Cerrar")
+        setOKButtonText(BidaideBundle.message("adb.db.close"))
         init()
         background(work = { Sqlite.tables(file) }) { names ->
             tables.setListData(names.toTypedArray())
@@ -138,7 +139,7 @@ private class DatabaseBrowser(project: Project, packageName: String, private val
 
     override fun createCenterPanel(): JComponent {
         tables.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        tables.emptyText.text = "Sin tablas"
+        tables.emptyText.text = BidaideBundle.message("adb.db.noTables")
         tables.addListSelectionListener {
             if (!it.valueIsAdjusting) tables.selectedValue?.let { table ->
                 sqlField.text = Sqlite.selectAll(table)
@@ -150,7 +151,7 @@ private class DatabaseBrowser(project: Project, packageName: String, private val
             border = JBUI.Borders.emptyBottom(6)
             add(JBLabel("SQL:"), BorderLayout.WEST)
             add(sqlField, BorderLayout.CENTER)
-            add(JButton("Ejecutar").apply { addActionListener { execute() } }, BorderLayout.EAST)
+            add(JButton(BidaideBundle.message("adb.db.execute")).apply { addActionListener { execute() } }, BorderLayout.EAST)
         }
         val splitter = OnePixelSplitter(false, 0.2f).apply {
             firstComponent = JBScrollPane(tables)
@@ -169,7 +170,7 @@ private class DatabaseBrowser(project: Project, packageName: String, private val
     private fun execute() {
         val sql = sqlField.text.trim()
         if (sql.isEmpty()) return
-        status.text = "Ejecutando..."
+        status.text = BidaideBundle.message("adb.db.running")
         background(work = { Sqlite.run(file, sql) }) { result ->
             grid.model = object : DefaultTableModel(
                 result.rows.map { it.toTypedArray<Any>() }.toTypedArray(), result.columns.toTypedArray<Any>(),
@@ -186,7 +187,7 @@ private class DatabaseBrowser(project: Project, packageName: String, private val
             val result = runCatching(work)
             ApplicationManager.getApplication().invokeLater({
                 if (isDisposed) return@invokeLater
-                result.onSuccess(onSuccess).onFailure { status.text = "Error: ${it.message ?: it.javaClass.simpleName}" }
+                result.onSuccess(onSuccess).onFailure { status.text = BidaideBundle.message("adb.db.error", it.message ?: it.javaClass.simpleName) }
             }, ModalityState.any())
         }
     }

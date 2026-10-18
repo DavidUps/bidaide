@@ -1,5 +1,6 @@
 package com.bidaide.github.actions
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhAccounts
 import com.bidaide.gh.GhCli
@@ -44,6 +45,7 @@ import git4idea.commands.Git
 import git4idea.commands.GitCommand
 import git4idea.commands.GitLineHandler
 import java.io.File
+import java.util.function.Supplier
 import javax.swing.JComponent
 import javax.swing.JList
 
@@ -60,21 +62,24 @@ abstract class GitHubProjectAction : AnAction(), DumbAware {
 class SwitchGitHubAccountAction : GitHubProjectAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        GhCli.async(project, "Leyendo cuentas de gh", work = { GhAccounts.parse(GhCli.run(null, GhAccounts.status())) }) { accounts ->
+        GhCli.async(project, BidaideBundle.message("github.account.reading"), work = { GhAccounts.parse(GhCli.run(null, GhAccounts.status())) }) { accounts ->
             if (accounts.size < 2) {
                 Notifier.info(
                     project, "GitHub",
-                    "gh solo tiene ${accounts.size} cuenta${accounts.firstOrNull()?.let { " (${it.login})" }.orEmpty()}. " +
-                        "Añade otra con <code>gh auth login</code> en una terminal.",
+                    if (accounts.isEmpty()) {
+                        BidaideBundle.message("github.account.none")
+                    } else {
+                        BidaideBundle.message("github.account.onlyOne", accounts.first().login)
+                    },
                 )
                 return@async
             }
             JBPopupFactory.getInstance().createPopupChooserBuilder(accounts)
-                .setTitle("Cuenta de GitHub activa (también en la terminal)")
+                .setTitle(BidaideBundle.message("github.account.choose"))
                 .setItemChosenCallback { account ->
                     if (account.active) return@setItemChosenCallback
-                    GhCli.async(project, "Cambiando a ${account.login}", work = { GhCli.run(null, GhAccounts.switch(account)) }) {
-                        Notifier.info(project, "GitHub", "gh usa ahora la cuenta ${account.login} en ${account.host}")
+                    GhCli.async(project, BidaideBundle.message("github.account.switching", account.login), work = { GhCli.run(null, GhAccounts.switch(account)) }) {
+                        Notifier.info(project, "GitHub", BidaideBundle.message("github.account.switched", account.login, account.host))
                         GhEvents.fire(project)
                         project.service<CurrentBranchPrService>().refresh()
                     }
@@ -87,10 +92,11 @@ class SwitchGitHubAccountAction : GitHubProjectAction() {
 
 /** Searches code on GitHub and opens the hit locally when it belongs to this repository. */
 class SearchGitHubCodeAction : GitHubProjectAction() {
-    private enum class Where(val label: String) {
-        REPO("Este repositorio"), OWNER("Todo lo del propietario del repositorio"), EVERYWHERE("Todo GitHub");
+    private enum class Where(private val text: Supplier<String>) {
+        REPO(BidaideBundle.lazyMessage("github.search.repo")), OWNER(BidaideBundle.lazyMessage("github.search.owner")),
+        EVERYWHERE(BidaideBundle.lazyMessage("github.search.everywhere"));
 
-        override fun toString() = label
+        override fun toString(): String = text.get()
     }
 
     private class Found(val repo: String?, val matches: List<com.bidaide.gh.GhCodeMatch>)
@@ -101,25 +107,25 @@ class SearchGitHubCodeAction : GitHubProjectAction() {
         val whereCombo = ComboBox(Where.entries.toTypedArray())
         val dialog = object : DialogWrapper(project) {
             init {
-                title = "Buscar código en GitHub"
-                setOKButtonText("Buscar")
+                title = BidaideBundle.message("github.search.title")
+                setOKButtonText(BidaideBundle.message("github.search.ok"))
                 init()
             }
 
             override fun createCenterPanel(): JComponent = panel {
-                row("Buscar:") { cell(queryField).align(AlignX.FILL).comment("Admite calificadores de GitHub: language:kotlin, path:app/, extension:xml...") }
-                row("En:") { cell(whereCombo) }
+                row(BidaideBundle.message("github.search.query")) { cell(queryField).align(AlignX.FILL).comment(BidaideBundle.message("github.search.query.comment")) }
+                row(BidaideBundle.message("github.search.where")) { cell(whereCombo) }
             }
 
             override fun getPreferredFocusedComponent() = queryField
 
-            override fun doValidate(): ValidationInfo? = if (queryField.text.isBlank()) ValidationInfo("Escribe qué buscar", queryField) else null
+            override fun doValidate(): ValidationInfo? = if (queryField.text.isBlank()) ValidationInfo(BidaideBundle.message("github.search.empty"), queryField) else null
         }
         if (!dialog.showAndGet()) return
         val query = queryField.text
         val where = whereCombo.item
         GhCli.async(
-            project, "Buscando «$query» en GitHub",
+            project, BidaideBundle.message("github.search.searching", query),
             work = {
                 // Outside a GitHub repository the search still works, just without narrowing.
                 val repo = GhRepoContext.workDir(project)?.let { dir -> runCatching { GhCli.run(dir, GhCommands.repoName()).trim() }.getOrNull() }
@@ -135,11 +141,11 @@ class SearchGitHubCodeAction : GitHubProjectAction() {
 
     private fun showMatches(project: Project, query: String, found: Found) {
         if (found.matches.isEmpty()) {
-            Notifier.info(project, "GitHub", "Sin resultados para «$query». GitHub solo indexa la rama por defecto.")
+            Notifier.info(project, "GitHub", BidaideBundle.message("github.search.noResults", query))
             return
         }
         JBPopupFactory.getInstance().createPopupChooserBuilder(found.matches)
-            .setTitle("${found.matches.size} resultados de «$query»")
+            .setTitle(BidaideBundle.message("github.search.results", found.matches.size, query))
             .setRenderer(object : ColoredListCellRenderer<com.bidaide.gh.GhCodeMatch>() {
                 override fun customizeCellRenderer(
                     list: JList<out com.bidaide.gh.GhCodeMatch>, value: com.bidaide.gh.GhCodeMatch?, index: Int, selected: Boolean, hasFocus: Boolean,
@@ -185,7 +191,7 @@ class FindPullRequestForLineAction : GitHubFileAction() {
         val path = VfsUtilCore.getRelativePath(file, repository.root) ?: return
         val line = editor.caretModel.logicalPosition.line + 1
         GhCli.async(
-            project, "Buscando la PR de la línea $line",
+            project, BidaideBundle.message("github.line.searching", line),
             work = {
                 val handler = GitLineHandler(project, repository.root, GitCommand.BLAME)
                 handler.addParameters("-L", "$line,$line", "--porcelain", "--", path)
@@ -195,12 +201,12 @@ class FindPullRequestForLineAction : GitHubFileAction() {
             },
         ) { (sha, pull) ->
             when {
-                sha == null -> Notifier.info(project, "GitHub", "La línea $line aún no está en ningún commit.")
-                pull == null -> Notifier.info(project, "GitHub", "El commit ${sha.take(7)} de la línea $line no llegó por ninguna pull request.")
+                sha == null -> Notifier.info(project, "GitHub", BidaideBundle.message("github.line.uncommitted", line))
+                pull == null -> Notifier.info(project, "GitHub", BidaideBundle.message("github.line.noPullRequest", sha.take(7), line))
                 else -> NotificationGroupManager.getInstance().getNotificationGroup("Bidaide")
-                    .createNotification("Línea $line: PR #${pull.number}", "${Html.esc(pull.title)} · commit ${sha.take(7)}", NotificationType.INFORMATION)
-                    .addAction(NotificationAction.createSimple("Revisar cambios") { PrReviewDiff.reopen(project, pull.number) })
-                    .addAction(NotificationAction.createSimple("Abrir en navegador") { BrowserUtil.browse(pull.url) })
+                    .createNotification(BidaideBundle.message("github.line.found", line, pull.number), "${Html.esc(pull.title)} · commit ${sha.take(7)}", NotificationType.INFORMATION)
+                    .addAction(NotificationAction.createSimple(BidaideBundle.message("github.pr.button.review")) { PrReviewDiff.reopen(project, pull.number) })
+                    .addAction(NotificationAction.createSimple(BidaideBundle.message("github.pr.button.browse")) { BrowserUtil.browse(pull.url) })
                     .notify(project)
             }
         }
@@ -212,7 +218,7 @@ class CloneGitHubRepositoryAction : GitHubProjectAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         GhCli.async(
-            project, "Leyendo tus repositorios",
+            project, BidaideBundle.message("github.clone.reading"),
             work = { GhCli.run(null, GhRepos.listMine()).lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList() },
         ) { repos -> askAndClone(project, repos) }
     }
@@ -221,35 +227,35 @@ class CloneGitHubRepositoryAction : GitHubProjectAction() {
         val repoCombo = ComboBox(repos.toTypedArray()).apply { isEditable = true }
         val parentField = TextFieldWithBrowseButton().apply {
             text = project.basePath?.let { File(it).parent }.orEmpty()
-            addBrowseFolderListener(project, FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle("Carpeta donde clonar"))
+            addBrowseFolderListener(project, FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle(BidaideBundle.message("github.clone.folderTitle")))
         }
         fun repo() = repoCombo.editor.item?.toString().orEmpty().trim()
         fun target() = File(parentField.text.trim(), repo().removeSuffix("/").removeSuffix(".git").substringAfterLast('/'))
         val dialog = object : DialogWrapper(project) {
             init {
-                title = "Clonar repositorio de GitHub"
-                setOKButtonText("Clonar")
+                title = BidaideBundle.message("github.clone.title")
+                setOKButtonText(BidaideBundle.message("github.clone.ok"))
                 init()
             }
 
             override fun createCenterPanel(): JComponent = panel {
-                row("Repositorio:") { cell(repoCombo).align(AlignX.FILL).comment("propietario/nombre o URL. La lista son tus repositorios.") }
-                row("Carpeta:") { cell(parentField).align(AlignX.FILL).comment("Se crea dentro una carpeta con el nombre del repositorio.") }
+                row(BidaideBundle.message("github.clone.repository")) { cell(repoCombo).align(AlignX.FILL).comment(BidaideBundle.message("github.clone.repository.comment")) }
+                row(BidaideBundle.message("github.clone.folder")) { cell(parentField).align(AlignX.FILL).comment(BidaideBundle.message("github.clone.folder.comment")) }
             }
 
             override fun getPreferredFocusedComponent() = repoCombo
 
             override fun doValidate(): ValidationInfo? = when {
-                repo().isEmpty() -> ValidationInfo("Indica el repositorio", repoCombo)
-                !File(parentField.text.trim()).isDirectory -> ValidationInfo("La carpeta no existe", parentField)
-                target().exists() -> ValidationInfo("Ya existe ${target().path}", parentField)
+                repo().isEmpty() -> ValidationInfo(BidaideBundle.message("github.clone.noRepository"), repoCombo)
+                !File(parentField.text.trim()).isDirectory -> ValidationInfo(BidaideBundle.message("github.clone.noFolder"), parentField)
+                target().exists() -> ValidationInfo(BidaideBundle.message("github.clone.exists", target().path), parentField)
                 else -> null
             }
         }
         if (!dialog.showAndGet()) return
         val repo = repo()
         val target = target()
-        GhCli.async(project, "Clonando $repo", work = { GhCli.run(null, GhRepos.clone(repo, target.path), GhCli.LONG_TIMEOUT_MILLIS) }) {
+        GhCli.async(project, BidaideBundle.message("github.clone.cloning", repo), work = { GhCli.run(null, GhRepos.clone(repo, target.path), GhCli.LONG_TIMEOUT_MILLIS) }) {
             VfsUtil.markDirtyAndRefresh(true, false, false, target)
             ProjectUtil.openOrImport(target.toPath(), project, true)
         }
@@ -263,16 +269,16 @@ class PublishToGitHubAction : GitHubProjectAction() {
         val repository = GhRepoContext.repository(project)
         if (repository == null) {
             Notifier.warn(
-                project, "Publicar en GitHub",
-                "El proyecto aún no es un repositorio git. Créalo con VCS → Create Git Repository, haz un primer commit y repite.",
+                project, BidaideBundle.message("github.publish.title"),
+                BidaideBundle.message("github.publish.noGit"),
             )
             return
         }
         val existing = GhRepoContext.gitHubRepos(project)
         if (existing.isNotEmpty()) {
             val answer = Messages.showYesNoDialog(
-                project, "Este proyecto ya está enlazado a ${existing.joinToString()}. ¿Publicarlo además como un repositorio nuevo?",
-                "Publicar en GitHub", Messages.getQuestionIcon(),
+                project, BidaideBundle.message("github.publish.alreadyLinked", existing.joinToString()),
+                BidaideBundle.message("github.publish.title"), Messages.getQuestionIcon(),
             )
             if (answer != Messages.YES) return
         }
@@ -280,45 +286,45 @@ class PublishToGitHubAction : GitHubProjectAction() {
         val nameField = JBTextField(repository.root.name, 30)
         val descriptionField = JBTextField()
         val remoteField = JBTextField(if ("origin" in remotes) "github" else "origin", 12)
-        val privateBox = JBCheckBox("Privado", true)
+        val privateBox = JBCheckBox(BidaideBundle.message("github.publish.private"), true)
         val hasCommits = repository.currentRevision != null
-        val pushBox = JBCheckBox("Hacer push de la rama actual", hasCommits).apply { isEnabled = hasCommits }
+        val pushBox = JBCheckBox(BidaideBundle.message("github.publish.push"), hasCommits).apply { isEnabled = hasCommits }
         val dialog = object : DialogWrapper(project) {
             init {
-                title = "Publicar proyecto en GitHub"
-                setOKButtonText("Publicar")
+                title = BidaideBundle.message("github.publish.dialogTitle")
+                setOKButtonText(BidaideBundle.message("github.release.publish"))
                 init()
             }
 
             override fun createCenterPanel(): JComponent = panel {
-                row("Nombre:") { cell(nameField).align(AlignX.FILL).comment("nombre, o organización/nombre.") }
-                row("Descripción:") { cell(descriptionField).align(AlignX.FILL) }
-                row("Remoto:") { cell(remoteField) }
+                row(BidaideBundle.message("github.publish.name")) { cell(nameField).align(AlignX.FILL).comment(BidaideBundle.message("github.publish.name.comment")) }
+                row(BidaideBundle.message("github.gist.description")) { cell(descriptionField).align(AlignX.FILL) }
+                row(BidaideBundle.message("github.publish.remote")) { cell(remoteField) }
                 row {
                     cell(privateBox)
                     cell(pushBox)
                 }
-                if (!hasCommits) row { comment("El repositorio local no tiene commits todavía: se creará vacío en GitHub.") }
+                if (!hasCommits) row { comment(BidaideBundle.message("github.publish.noCommits")) }
             }
 
             override fun doValidate(): ValidationInfo? = when {
-                nameField.text.isBlank() -> ValidationInfo("Indica el nombre", nameField)
-                remoteField.text.trim() in remotes -> ValidationInfo("Ya existe un remoto con ese nombre", remoteField)
-                remoteField.text.isBlank() -> ValidationInfo("Indica el nombre del remoto", remoteField)
+                nameField.text.isBlank() -> ValidationInfo(BidaideBundle.message("github.publish.noName"), nameField)
+                remoteField.text.trim() in remotes -> ValidationInfo(BidaideBundle.message("github.publish.remoteExists"), remoteField)
+                remoteField.text.isBlank() -> ValidationInfo(BidaideBundle.message("github.publish.noRemote"), remoteField)
                 else -> null
             }
         }
         if (!dialog.showAndGet()) return
         val args = GhRepos.publish(nameField.text.trim(), descriptionField.text, privateBox.isSelected, remoteField.text.trim(), pushBox.isSelected)
         GhCli.async(
-            project, "Publicando en GitHub",
+            project, BidaideBundle.message("github.publish.publishing"),
             work = {
                 val output = GhCli.run(VfsUtilCore.virtualToIoFile(repository.root), args, GhCli.LONG_TIMEOUT_MILLIS)
                 repository.update()
                 output.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("https://") }.orEmpty()
             },
         ) { url ->
-            Notifier.info(project, "Proyecto publicado en GitHub", Html.link(url, url))
+            Notifier.info(project, BidaideBundle.message("github.publish.done"), Html.link(url, url))
             GhEvents.fire(project)
         }
     }

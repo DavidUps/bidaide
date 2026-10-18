@@ -1,5 +1,6 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhReviewCommands.Var
 import com.google.gson.JsonObject
 
@@ -65,10 +66,10 @@ object GhDiscussions {
     fun parseList(json: String): List<GhDiscussion> = repository(json)?.nodes("discussions").orEmpty().map(::parseDiscussion)
 
     fun parse(json: String): GhDiscussion =
-        repository(json)?.obj("discussion")?.let(::parseDiscussion) ?: throw GhException("La discussion ya no existe.")
+        repository(json)?.obj("discussion")?.let(::parseDiscussion) ?: throw GhException(BidaideBundle.message("gh.discussion.gone"))
 
     fun parseSetup(json: String): GhDiscussionSetup {
-        val repo = repository(json) ?: throw GhException("No se pudo leer el repositorio.")
+        val repo = repository(json) ?: throw GhException(BidaideBundle.message("gh.discussion.noRepository"))
         val categories = repo.nodes("discussionCategories").map { GhDiscussionCategory(it.string("id").orEmpty(), it.string("name").orEmpty()) }
         return GhDiscussionSetup(repo.string("id").orEmpty(), repo.bool("hasDiscussionsEnabled"), categories)
     }

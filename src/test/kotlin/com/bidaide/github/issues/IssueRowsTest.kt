@@ -39,23 +39,23 @@ class IssueRowsTest {
     fun `an issue row reads like on github`() {
         val row = IssueRows.row(issues[0], now)
         assertEquals("Display GitHub avatars for PR author and reviewers", row.title)
-        assertEquals("#1 · DavidUps la abrió hace 3 h · v0.2", row.subtitle)
+        assertEquals("#1 · DavidUps opened 3 h ago · v0.2", row.subtitle)
         assertEquals(listOf("enhancement"), row.labels.map { it.text })
         assertEquals(listOf("2 PR"), row.badges.map { it.text })
         assertEquals(listOf("DavidUps", "Copilot"), row.people.map { it.login })
-        assertEquals("hace 23 min", row.time)
+        assertEquals("23 min ago", row.time)
     }
 
     @Test
     fun `closed issues say how they were closed and bare ones still render`() {
-        assertEquals("Abierta", IssueRows.state(issues[0]).label)
-        assertEquals("Descartada", IssueRows.state(issues[1]).label)
-        assertEquals("Cerrada", IssueRows.state(issues[2]).label)
+        assertEquals("Open", IssueRows.state(issues[0]).label)
+        assertEquals("Not planned", IssueRows.state(issues[1]).label)
+        assertEquals("Closed", IssueRows.state(issues[2]).label)
         val bare = IssueRows.row(issues[1], now)
-        assertEquals("#2 · ghost la abrió ", bare.subtitle)
+        assertEquals("#2 · ghost opened ", bare.subtitle)
         assertTrue(bare.badges.isEmpty() && bare.people.isEmpty() && bare.labels.isEmpty())
         assertEquals(listOf("1 PR"), IssueRows.row(issues[2], now).badges.map { it.text })
-        assertTrue(IssueRows.summary(issues[0], now).contains("abrió esta issue hace 3 h"))
+        assertTrue(IssueRows.summary(issues[0], now).contains("opened this issue 3 h ago"))
         assertTrue(IssueRows.summary(issues[0], now).contains("v0.2"))
     }
 

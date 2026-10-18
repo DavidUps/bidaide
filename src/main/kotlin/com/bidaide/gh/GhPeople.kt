@@ -1,8 +1,10 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Supplier
 
 /** A GitHub account as the UI needs it. [avatarUrl] is external data: validate it before loading anything from it. */
 data class GitHubUser(val login: String, val avatarUrl: String? = null)
@@ -15,8 +17,12 @@ data class GhReviewRequest(
     val slug: String? = null,
 )
 
-enum class ReviewerStatus(val label: String) {
-    REQUESTED("pendiente"), APPROVED("aprobó"), CHANGES_REQUESTED("pidió cambios"), COMMENTED("comentó"), DISMISSED("review descartada")
+enum class ReviewerStatus(private val text: Supplier<String>) {
+    REQUESTED(BidaideBundle.lazyMessage("gh.reviewer.requested")), APPROVED(BidaideBundle.lazyMessage("gh.timeline.approved")),
+    CHANGES_REQUESTED(BidaideBundle.lazyMessage("gh.timeline.changesRequested")), COMMENTED(BidaideBundle.lazyMessage("gh.timeline.commented")),
+    DISMISSED(BidaideBundle.lazyMessage("gh.timeline.dismissed"));
+
+    val label: String get() = text.get()
 }
 
 /** Someone asked to review, or who already did. Teams have no user profile, so they are never looked up as users. */
@@ -93,8 +99,8 @@ object GhPeople {
 
     /** `{"login": ..., "avatar_url": ...}` of the users API; throws on anything that is not that. */
     fun parseUser(json: String): GitHubUser {
-        val user = JsonParser.parseString(json).takeIf { it.isJsonObject }?.asJsonObject ?: throw GhException("Respuesta de usuario no válida")
-        val login = user.string("login")?.takeIf { it.isNotBlank() } ?: throw GhException("Respuesta de usuario sin login")
+        val user = JsonParser.parseString(json).takeIf { it.isJsonObject }?.asJsonObject ?: throw GhException(BidaideBundle.message("gh.people.badUser"))
+        val login = user.string("login")?.takeIf { it.isNotBlank() } ?: throw GhException(BidaideBundle.message("gh.people.noLogin"))
         return GitHubUser(login, user.string("avatar_url")?.takeIf { it.isNotBlank() })
     }
 }

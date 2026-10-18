@@ -3,6 +3,7 @@ package com.bidaide.adb
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.model.AndroidModel
 import com.android.tools.idea.projectsystem.getAndroidFacets
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -57,14 +58,14 @@ object AdbTargetResolver {
         val devices = onlineDevices(project)
         val remembered = devices.firstOrNull { it.serialNumber == memory.deviceSerial }
         when {
-            devices.isEmpty() -> Notifier.warn(project, "ADB", "No hay ningún dispositivo conectado.")
+            devices.isEmpty() -> Notifier.warn(project, "ADB", BidaideBundle.message("adb.target.noDevices"))
             devices.size == 1 -> onChosen(devices)
             memory.deviceSerial == AdbSelectionMemory.ALL_DEVICES -> onChosen(devices)
             remembered != null -> onChosen(listOf(remembered))
             else -> {
-                val choices = devices.map { Choice(it, deviceLabel(it)) } + Choice(null, "Todos los dispositivos (${devices.size})")
+                val choices = devices.map { Choice(it, deviceLabel(it)) } + Choice(null, BidaideBundle.message("adb.target.allDevices", devices.size))
                 JBPopupFactory.getInstance().createPopupChooserBuilder(choices)
-                    .setTitle("Elegir dispositivo")
+                    .setTitle(BidaideBundle.message("adb.target.chooseDevice"))
                     .setRenderer(SimpleListCellRenderer.create("") { it.label })
                     .setItemChosenCallback { choice ->
                         memory.deviceSerial = choice.device?.serialNumber ?: AdbSelectionMemory.ALL_DEVICES
@@ -81,12 +82,12 @@ object AdbTargetResolver {
         val remembered = ids.firstOrNull { it == memory.packageName }
         when {
             ids.isEmpty() -> Notifier.warn(
-                project, "ADB", "No se encontró ningún módulo de aplicación Android. ¿Ha terminado la sincronización de Gradle?"
+                project, "ADB", BidaideBundle.message("adb.target.noModules")
             )
             ids.size == 1 -> onChosen(ids.single())
             remembered != null -> onChosen(remembered)
             else -> JBPopupFactory.getInstance().createPopupChooserBuilder(ids)
-                .setTitle("Elegir aplicación")
+                .setTitle(BidaideBundle.message("adb.target.chooseApp"))
                 .setItemChosenCallback {
                     memory.packageName = it
                     onChosen(it)
@@ -97,5 +98,5 @@ object AdbTargetResolver {
     }
 
     fun deviceLabel(device: IDevice): String =
-        if (device.isEmulator) "${device.name} (emulador)" else device.name
+        if (device.isEmulator) BidaideBundle.message("adb.target.emulator", device.name) else device.name
 }

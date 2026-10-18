@@ -1,5 +1,6 @@
 package com.bidaide.github.inbox
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -63,15 +64,15 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
     private val views: JBList<Inbox.View> = JBList(viewsModel)
     private val listModel = CollectionListModel<GhNotification>()
     private val list: JBList<GhNotification> = JBList(listModel)
-    private val allToggle = JToggleButton("Todas", true)
-    private val unreadToggle = JToggleButton("Sin leer")
+    private val allToggle = JToggleButton(BidaideBundle.message("gh.scope.all"), true)
+    private val unreadToggle = JToggleButton(BidaideBundle.message("github.inbox.unread"))
     private val search = SearchTextField(false)
 
-    private val openButton = JButton("Abrir")
-    private val reviewButton = JButton("Revisar cambios")
-    private val readButton = JButton("Marcar leída")
-    private val doneButton = JButton("Hecho")
-    private val unsubscribeButton = JButton("Dejar de seguir")
+    private val openButton = JButton(BidaideBundle.message("github.inbox.open"))
+    private val reviewButton = JButton(BidaideBundle.message("github.pr.button.review"))
+    private val readButton = JButton(BidaideBundle.message("github.inbox.markRead"))
+    private val doneButton = JButton(BidaideBundle.message("github.inbox.done"))
+    private val unsubscribeButton = JButton(BidaideBundle.message("github.inbox.unsubscribe"))
 
     private val selectedView: Inbox.View get() = views.selectedValue ?: Inbox.ALL
 
@@ -83,7 +84,7 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
 
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
         list.cellRenderer = RichRowRenderer(::row)
-        list.emptyText.text = "Cargando..."
+        list.emptyText.text = BidaideBundle.message("github.list.loading")
         list.addListSelectionListener { if (!it.valueIsAdjusting) updateButtons() }
         object : DoubleClickListener() {
             override fun onDoubleClick(event: MouseEvent): Boolean {
@@ -98,22 +99,22 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
         }
         allToggle.addActionListener { refresh() }
         unreadToggle.addActionListener { refresh() }
-        search.textEditor.emptyText.text = "Buscar notificaciones"
+        search.textEditor.emptyText.text = BidaideBundle.message("github.inbox.search")
         search.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = refresh()
         })
 
         openButton.addActionListener { list.selectedValue?.let(::open) }
         reviewButton.addActionListener { list.selectedValue?.number?.let { PrReviewDiff.reopen(project, it) } }
-        readButton.addActionListener { list.selectedValue?.let { mutate("Marcando notificación", GhNotifications.markRead(it.id)) } }
-        doneButton.addActionListener { list.selectedValue?.let { mutate("Archivando notificación", GhNotifications.done(it.id)) } }
-        unsubscribeButton.addActionListener { list.selectedValue?.let { mutate("Cancelando suscripción", GhNotifications.unsubscribe(it.id)) } }
+        readButton.addActionListener { list.selectedValue?.let { mutate(BidaideBundle.message("github.inbox.marking"), GhNotifications.markRead(it.id)) } }
+        doneButton.addActionListener { list.selectedValue?.let { mutate(BidaideBundle.message("github.inbox.archiving"), GhNotifications.done(it.id)) } }
+        unsubscribeButton.addActionListener { list.selectedValue?.let { mutate(BidaideBundle.message("github.inbox.unsubscribing"), GhNotifications.unsubscribe(it.id)) } }
 
         val actions = DefaultActionGroup(
-            object : DumbAwareAction("Actualizar", null, AllIcons.Actions.Refresh) {
+            object : DumbAwareAction(BidaideBundle.message("github.list.refresh"), null, AllIcons.Actions.Refresh) {
                 override fun actionPerformed(e: AnActionEvent) = reload()
             },
-            object : DumbAwareAction("Marcar todas como leídas", null, AllIcons.Actions.Checked) {
+            object : DumbAwareAction(BidaideBundle.message("github.inbox.markAllRead"), null, AllIcons.Actions.Checked) {
                 override fun actionPerformed(e: AnActionEvent) = markAllRead()
             },
         )
@@ -144,8 +145,8 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
     override fun reload() {
         loaded = true
         GhCli.async(
-            project, "Cargando notificaciones",
-            onFailure = { list.emptyText.text = "No se pudo cargar. Revisa gh y pulsa Actualizar." },
+            project, BidaideBundle.message("github.inbox.loading"),
+            onFailure = { list.emptyText.text = BidaideBundle.message("github.list.loadFailed") },
             work = {
                 val workDir = GhRepoContext.workDir(project)
                 val repo = workDir?.let { runCatching { GhCli.run(it, GhCommands.repoName()).trim() }.getOrNull() }
@@ -167,7 +168,7 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
         val selectedId = list.selectedValue?.id
         val shown = Inbox.filter(notifications, selectedView, unreadToggle.isSelected, search.text)
         listModel.replaceAll(shown)
-        list.emptyText.text = if (loaded) "Nada por aquí" else "Cargando..."
+        list.emptyText.text = if (loaded) BidaideBundle.message("github.inbox.empty") else BidaideBundle.message("github.list.loading")
         shown.indexOfFirst { it.id == selectedId }.takeIf { it >= 0 }?.let { list.selectedIndex = it }
         views.repaint()
         updateButtons()
@@ -195,12 +196,12 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
 
     private fun markAllRead() {
         val answer = Messages.showYesNoDialog(
-            project, "Se marcarán como leídas todas tus notificaciones, de todos los repositorios.", "Marcar todas como leídas",
+            project, BidaideBundle.message("github.inbox.markAllRead.confirm"), BidaideBundle.message("github.inbox.markAllRead"),
             Messages.getQuestionIcon(),
         )
         if (answer != Messages.YES) return
-        GhCli.async(project, "Marcando notificaciones", work = { GhCli.run(GhRepoContext.workDir(project), GhNotifications.markAllRead(false)) }) {
-            Notifier.info(project, "GitHub", "Notificaciones marcadas como leídas")
+        GhCli.async(project, BidaideBundle.message("github.inbox.markingAll"), work = { GhCli.run(GhRepoContext.workDir(project), GhNotifications.markAllRead(false)) }) {
+            Notifier.info(project, "GitHub", BidaideBundle.message("github.inbox.markedAll"))
             reload()
         }
     }

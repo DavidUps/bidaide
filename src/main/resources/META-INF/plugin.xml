@@ -5,143 +5,66 @@
     <description><![CDATA[
         GitHub (pull requests, issues, open in GitHub, gists) powered by the GitHub CLI, plus quick ADB operations
         for the app you are working on, in a single plugin.
+        <br/><br/>
+        In IntelliJ IDEA only the GitHub part is available. The ADB operations, installing APKs and testing a pull
+        request on a device need Android Studio.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
-    <!-- Android Studio only. IntelliJ IDEA no longer bundles the Android plugin, and its version of that plugin's
-         API differs from the one this plugin is built and verified against. -->
-    <depends>com.intellij.modules.androidstudio</depends>
-    <depends>org.jetbrains.android</depends>
     <depends>Git4Idea</depends>
-    <!-- Bundled with Android Studio (the Android plugin needs it). Gives the project's Gradle JDK, used to build a
-         pull request in its own worktree. -->
-    <depends>com.intellij.gradle</depends>
+    <!-- ADB, APK installs and "Probar en dispositivo" live in bidaide-android.xml, loaded only in Android Studio.
+         It hangs from the Android plugin, so that the Plugin Verifier puts that plugin's classes on the classpath
+         (with the Android Studio module as the condition it reports them missing on the Linux build CI uses).
+         bidaide-android.xml then requires Android Studio itself: the Android plugin IntelliJ IDEA can install has a
+         different API from the one this plugin is built and verified against. -->
+    <depends optional="true" config-file="bidaide-android.xml">org.jetbrains.android</depends>
+
+    <resource-bundle>messages.BidaideBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="Bidaide" displayType="BALLOON"/>
+        <notificationGroup id="Bidaide" displayType="BALLOON" key="notification.group.bidaide" bundle="messages.BidaideBundle"/>
         <toolWindow id="Bidaide" anchor="bottom" icon="/icons/bidaide.svg" canCloseContents="true"
                     factoryClass="com.bidaide.github.toolwindow.BidaideToolWindowFactory"/>
         <postStartupActivity implementation="com.bidaide.github.current.CurrentBranchPrService$Startup"/>
         <statusBarWidgetFactory id="Bidaide.PrStatus" order="after gitWidget"
                                 implementation="com.bidaide.github.current.PrStatusWidgetFactory"/>
         <diff.DiffExtension implementation="com.bidaide.github.review.PrReviewDiffExtension"/>
-        <applicationConfigurable parentId="tools" id="com.bidaide.settings" displayName="Bidaide"
+        <applicationConfigurable parentId="tools" id="com.bidaide.settings" key="settings.displayName" bundle="messages.BidaideBundle"
                                  instance="com.bidaide.settings.BidaideConfigurable"/>
     </extensions>
 
+    <applicationListeners>
+        <!-- Applies the language chosen in Bidaide's settings to the actions below before the first menu is built. -->
+        <listener class="com.bidaide.BidaideActionTexts$Startup" topic="com.intellij.ide.AppLifecycleListener"/>
+    </applicationListeners>
+
+    <!-- Texts come from messages/BidaideBundle: action.<id>.text, action.<id>.description and group.<id>.text. -->
     <actions>
         <action id="Bidaide.Pr.AddComment" class="com.bidaide.github.review.AddPrCommentAction">
             <add-to-group group-id="Diff.EditorPopupMenu" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="control alt C"/>
         </action>
 
-        <group id="Bidaide.GitHub.File" text="Bidaide GitHub" popup="true" icon="AllIcons.Vcs.Vendors.Github">
+        <group id="Bidaide.GitHub.File" popup="true" icon="AllIcons.Vcs.Vendors.Github">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
             <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
-            <action id="Bidaide.GitHub.Open" class="com.bidaide.github.actions.OpenInGitHubAction" text="Abrir en GitHub"/>
-            <action id="Bidaide.GitHub.CopyLink" class="com.bidaide.github.actions.CopyGitHubLinkAction"
-                    text="Copiar enlace permanente de GitHub"/>
-            <action id="Bidaide.GitHub.Gist" class="com.bidaide.github.actions.CreateGistAction" text="Crear gist..."/>
-            <action id="Bidaide.GitHub.IssueFromSelection" class="com.bidaide.github.actions.CreateIssueFromSelectionAction"
-                    text="Crear issue desde selección..."/>
-            <action id="Bidaide.GitHub.LinePullRequest" class="com.bidaide.github.actions.FindPullRequestForLineAction"
-                    text="¿Qué PR trajo esta línea?"/>
+            <action id="Bidaide.GitHub.Open" class="com.bidaide.github.actions.OpenInGitHubAction"/>
+            <action id="Bidaide.GitHub.CopyLink" class="com.bidaide.github.actions.CopyGitHubLinkAction"/>
+            <action id="Bidaide.GitHub.Gist" class="com.bidaide.github.actions.CreateGistAction"/>
+            <action id="Bidaide.GitHub.IssueFromSelection" class="com.bidaide.github.actions.CreateIssueFromSelectionAction"/>
+            <action id="Bidaide.GitHub.LinePullRequest" class="com.bidaide.github.actions.FindPullRequestForLineAction"/>
         </group>
 
-        <action id="Bidaide.Adb.InstallSelectedApk" class="com.bidaide.adb.AdbInstallSelectedApkAction"
-                text="Instalar APK en dispositivo" icon="AllIcons.Actions.Install">
-            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
-        </action>
-
-        <group id="Bidaide.Menu" text="Bidaide" popup="true" icon="/icons/bidaide.svg">
+        <group id="Bidaide.Menu" popup="true" icon="/icons/bidaide.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
-            <action id="Bidaide.GitHub.ToolWindow" class="com.bidaide.github.actions.ShowGitHubToolWindowAction"
-                    text="Abrir ventana Bidaide" icon="/icons/bidaide.svg"/>
+            <action id="Bidaide.GitHub.ToolWindow" class="com.bidaide.github.actions.ShowGitHubToolWindowAction" icon="/icons/bidaide.svg"/>
             <reference ref="Bidaide.GitHub.File"/>
-            <group id="Bidaide.GitHub.Repo" text="GitHub" popup="true" icon="AllIcons.Vcs.Vendors.Github">
-                <action id="Bidaide.GitHub.SearchCode" class="com.bidaide.github.actions.SearchGitHubCodeAction"
-                        text="Buscar código en GitHub..."/>
-                <action id="Bidaide.GitHub.SwitchAccount" class="com.bidaide.github.actions.SwitchGitHubAccountAction"
-                        text="Cambiar cuenta de GitHub..."/>
-                <action id="Bidaide.GitHub.Clone" class="com.bidaide.github.actions.CloneGitHubRepositoryAction"
-                        text="Clonar repositorio..."/>
-                <action id="Bidaide.GitHub.Publish" class="com.bidaide.github.actions.PublishToGitHubAction"
-                        text="Publicar proyecto en GitHub..."/>
-                <action id="Bidaide.GitHub.DeletePrWorktrees" class="com.bidaide.github.pr.DeletePrWorktreesAction"
-                        text="Borrar worktrees de PRs..."
-                        description="Borra los worktrees donde «Probar en dispositivo» compila las PRs"/>
-            </group>
-            <action id="Bidaide.Adb.Popup" class="com.bidaide.adb.AdbPopupAction" text="Operaciones ADB..."
-                    description="Muestra todas las operaciones ADB en un popup">
-                <keyboard-shortcut keymap="Mac OS X" first-keystroke="shift ctrl A"/>
-                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="shift ctrl A"/>
-                <keyboard-shortcut keymap="$default" first-keystroke="shift ctrl alt A"/>
-            </action>
-            <group id="Bidaide.Adb.Operations" text="ADB" popup="true">
-                <group id="Bidaide.Adb.Favorites" class="com.bidaide.adb.AdbFavoritesGroup"/>
-                <action id="Bidaide.Adb.Uninstall" class="com.bidaide.adb.AdbUninstallAction" text="ADB: Desinstalar app"/>
-                <action id="Bidaide.Adb.Kill" class="com.bidaide.adb.AdbKillAction" text="ADB: Matar app"/>
-                <action id="Bidaide.Adb.Start" class="com.bidaide.adb.AdbStartAction" text="ADB: Iniciar app"/>
-                <action id="Bidaide.Adb.Restart" class="com.bidaide.adb.AdbRestartAction" text="ADB: Reiniciar app"/>
-                <action id="Bidaide.Adb.ClearData" class="com.bidaide.adb.AdbClearDataAction" text="ADB: Limpiar datos"/>
-                <action id="Bidaide.Adb.ClearDataRestart" class="com.bidaide.adb.AdbClearDataRestartAction" text="ADB: Limpiar datos y reiniciar"/>
-                <action id="Bidaide.Adb.ClearCache" class="com.bidaide.adb.AdbClearCacheAction" text="ADB: Limpiar caché"/>
-                <action id="Bidaide.Adb.Reinstall" class="com.bidaide.adb.AdbReinstallAction" text="ADB: Reinstalar app"/>
-                <action id="Bidaide.Adb.InstallApk" class="com.bidaide.adb.AdbInstallApkAction" text="ADB: Instalar APK..."/>
-                <separator/>
-                <action id="Bidaide.Adb.StartDebug" class="com.bidaide.adb.AdbStartDebugAction" text="ADB: Iniciar app con depurador"/>
-                <action id="Bidaide.Adb.RestartDebug" class="com.bidaide.adb.AdbRestartDebugAction" text="ADB: Reiniciar app con depurador"/>
-                <action id="Bidaide.Adb.ClearDataRestartDebug" class="com.bidaide.adb.AdbClearDataRestartDebugAction" text="ADB: Limpiar datos y reiniciar con depurador"/>
-                <separator/>
-                <action id="Bidaide.Adb.GrantPermissions" class="com.bidaide.adb.AdbGrantPermissionsAction" text="ADB: Conceder permisos"/>
-                <action id="Bidaide.Adb.RevokePermissions" class="com.bidaide.adb.AdbRevokePermissionsAction" text="ADB: Revocar permisos"/>
-                <action id="Bidaide.Adb.RevokePermissionsRestart" class="com.bidaide.adb.AdbRevokePermissionsRestartAction" text="ADB: Revocar permisos y reiniciar"/>
-                <separator/>
-                <action id="Bidaide.Adb.DeepLink" class="com.bidaide.adb.AdbDeepLinkAction" text="ADB: Abrir deep link..."/>
-                <action id="Bidaide.Adb.Screenshot" class="com.bidaide.adb.AdbScreenshotAction" text="ADB: Captura de pantalla"/>
-                <action id="Bidaide.Adb.Record" class="com.bidaide.adb.AdbRecordAction" text="ADB: Iniciar / detener grabación de pantalla"/>
-                <action id="Bidaide.Adb.Logcat" class="com.bidaide.adb.AdbLogcatAction" text="ADB: Logcat de la app"/>
-                <action id="Bidaide.Adb.SendText" class="com.bidaide.adb.AdbSendTextAction" text="ADB: Enviar texto..."/>
-                <action id="Bidaide.Adb.BugReport" class="com.bidaide.adb.AdbBugReportAction" text="ADB: Informe de bug a issue..."/>
-                <separator/>
-                <action id="Bidaide.Adb.DarkMode" class="com.bidaide.adb.AdbDarkModeAction" text="ADB: Alternar modo oscuro"/>
-                <action id="Bidaide.Adb.FontScale" class="com.bidaide.adb.AdbFontScaleAction" text="ADB: Alternar fuente grande"/>
-                <action id="Bidaide.Adb.AppLocale" class="com.bidaide.adb.AdbAppLocaleAction" text="ADB: Idioma de la app..."/>
-                <action id="Bidaide.Adb.Animations" class="com.bidaide.adb.AdbAnimationsAction" text="ADB: Alternar animaciones"/>
-                <action id="Bidaide.Adb.DontKeepActivities" class="com.bidaide.adb.AdbDontKeepActivitiesAction" text="ADB: Alternar «No mantener actividades»"/>
-                <action id="Bidaide.Adb.ShowTouches" class="com.bidaide.adb.AdbShowTouchesAction" text="ADB: Alternar mostrar toques"/>
-                <action id="Bidaide.Adb.Rotate" class="com.bidaide.adb.AdbRotateAction" text="ADB: Girar pantalla (vertical / horizontal)"/>
-                <action id="Bidaide.Adb.AutoRotate" class="com.bidaide.adb.AdbAutoRotateAction" text="ADB: Activar rotación automática"/>
-                <group id="Bidaide.Adb.Profiles" class="com.bidaide.adb.AdbProfilesGroup"/>
-                <separator/>
-                <action id="Bidaide.Adb.AirplaneMode" class="com.bidaide.adb.AdbAirplaneModeAction" text="ADB: Alternar modo avión"/>
-                <action id="Bidaide.Adb.WifiOn" class="com.bidaide.adb.AdbWifiOnAction" text="ADB: Activar Wi-Fi"/>
-                <action id="Bidaide.Adb.WifiOff" class="com.bidaide.adb.AdbWifiOffAction" text="ADB: Desactivar Wi-Fi"/>
-                <action id="Bidaide.Adb.MobileDataOn" class="com.bidaide.adb.AdbMobileDataOnAction" text="ADB: Activar datos móviles"/>
-                <action id="Bidaide.Adb.MobileDataOff" class="com.bidaide.adb.AdbMobileDataOffAction" text="ADB: Desactivar datos móviles"/>
-                <action id="Bidaide.Adb.BatteryLow" class="com.bidaide.adb.AdbBatteryLowAction" text="ADB: Simular batería baja (5 %)"/>
-                <action id="Bidaide.Adb.Doze" class="com.bidaide.adb.AdbDozeAction" text="ADB: Forzar modo Doze"/>
-                <action id="Bidaide.Adb.PowerReset" class="com.bidaide.adb.AdbPowerResetAction" text="ADB: Restaurar batería y Doze"/>
-                <action id="Bidaide.Adb.Location" class="com.bidaide.adb.AdbLocationAction" text="ADB: Simular ubicación GPS (emulador)..."/>
-                <action id="Bidaide.Adb.SlowNetwork" class="com.bidaide.adb.AdbSlowNetworkAction" text="ADB: Simular red lenta (emulador)"/>
-                <action id="Bidaide.Adb.NormalNetwork" class="com.bidaide.adb.AdbNormalNetworkAction" text="ADB: Restaurar velocidad de red (emulador)"/>
-                <action id="Bidaide.Adb.KillInBackground" class="com.bidaide.adb.AdbKillInBackgroundAction" text="ADB: Matar proceso en segundo plano"/>
-                <separator/>
-                <action id="Bidaide.Adb.Prefs" class="com.bidaide.adb.AdbPrefsAction" text="ADB: Ver / editar SharedPreferences..."/>
-                <action id="Bidaide.Adb.Database" class="com.bidaide.adb.AdbDatabaseAction" text="ADB: Explorar bases de datos..."/>
-                <action id="Bidaide.Adb.PullData" class="com.bidaide.adb.AdbPullDataAction" text="ADB: Extraer bases de datos y preferencias"/>
-                <action id="Bidaide.Adb.Backup" class="com.bidaide.adb.AdbBackupAction" text="ADB: Guardar estado de la app"/>
-                <action id="Bidaide.Adb.Restore" class="com.bidaide.adb.AdbRestoreAction" text="ADB: Restaurar estado de la app..."/>
-                <separator/>
-                <action id="Bidaide.Adb.Pair" class="com.bidaide.adb.AdbPairAction" text="ADB: Emparejar por Wi-Fi..."/>
-                <action id="Bidaide.Adb.Reverse" class="com.bidaide.adb.AdbReverseAction" text="ADB: Redirigir puerto (adb reverse)..."/>
-                <separator/>
-                <group id="Bidaide.Adb.Custom" class="com.bidaide.adb.AdbCustomCommandsGroup"/>
-                <separator/>
-                <action id="Bidaide.Adb.ForgetSelection" class="com.bidaide.adb.AdbForgetSelectionAction" text="ADB: Cambiar dispositivo / aplicación"/>
-                <action id="Bidaide.Adb.ManageFavorites" class="com.bidaide.adb.AdbManageFavoritesAction" text="ADB: Gestionar favoritos..."
-                        description="Elige qué operaciones ADB aparecen primero en el popup"/>
+            <group id="Bidaide.GitHub.Repo" popup="true" icon="AllIcons.Vcs.Vendors.Github">
+                <action id="Bidaide.GitHub.SearchCode" class="com.bidaide.github.actions.SearchGitHubCodeAction"/>
+                <action id="Bidaide.GitHub.SwitchAccount" class="com.bidaide.github.actions.SwitchGitHubAccountAction"/>
+                <action id="Bidaide.GitHub.Clone" class="com.bidaide.github.actions.CloneGitHubRepositoryAction"/>
+                <action id="Bidaide.GitHub.Publish" class="com.bidaide.github.actions.PublishToGitHubAction"/>
             </group>
         </group>
     </actions>

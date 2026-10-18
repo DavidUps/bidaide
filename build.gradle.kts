@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
@@ -29,6 +30,8 @@ repositories {
 // A local Android Studio is used when there is one at androidStudioPath (fast, no download); otherwise, as on CI,
 // the same version is downloaded.
 val localAndroidStudio = providers.gradleProperty("androidStudioPath").orNull?.takeIf { it.isNotBlank() && file(it).isDirectory }
+// Same for the IntelliJ IDEA that verifyPlugin also checks the plugin against.
+val localIntellijIdea = providers.gradleProperty("intellijIdeaPath").orNull?.takeIf { it.isNotBlank() && file(it).isDirectory }
 
 dependencies {
     intellijPlatform {
@@ -55,10 +58,12 @@ intellijPlatform {
     buildSearchableOptions = false
 
     // ./gradlew verifyPlugin runs the same checker the Marketplace runs on every upload, against the IDE the
-    // plugin is built with. Reports land in build/reports/pluginVerifier.
+    // plugin is built with and against IntelliJ IDEA, where only the GitHub part loads (bidaide-android.xml is
+    // skipped there). Reports land in build/reports/pluginVerifier.
     pluginVerification {
         ides {
             if (localAndroidStudio != null) local(localAndroidStudio) else create("AI", providers.gradleProperty("androidStudioVersion").get())
+            if (localIntellijIdea != null) local(localIntellijIdea) else create(IntelliJPlatformType.IntellijIdea, providers.gradleProperty("intellijIdeaVersion").get())
         }
     }
 

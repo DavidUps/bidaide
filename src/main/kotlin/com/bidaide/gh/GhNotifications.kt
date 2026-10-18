@@ -1,5 +1,7 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
+
 /** An entry of the GitHub notifications inbox. */
 data class GhNotification(
     val id: String,
@@ -24,12 +26,22 @@ data class GhNotification(
 }
 
 object GhNotifications {
-    val REASONS = mapOf(
-        "assign" to "te la asignaron", "author" to "eres el autor", "comment" to "comentaste", "ci_activity" to "actividad de CI",
-        "invitation" to "invitación", "manual" to "suscripción manual", "mention" to "te mencionaron",
-        "review_requested" to "te piden review", "security_alert" to "alerta de seguridad", "state_change" to "cambiaste su estado",
-        "subscribed" to "sigues el repositorio", "team_mention" to "mencionaron a tu equipo", "approval_requested" to "piden tu aprobación",
-    )
+    val REASONS: Map<String, String>
+        get() = mapOf(
+            "assign" to BidaideBundle.message("gh.notification.reason.assign"),
+            "author" to BidaideBundle.message("gh.notification.reason.author"),
+            "comment" to BidaideBundle.message("gh.notification.reason.comment"),
+            "ci_activity" to BidaideBundle.message("gh.notification.reason.ciActivity"),
+            "invitation" to BidaideBundle.message("gh.notification.reason.invitation"),
+            "manual" to BidaideBundle.message("gh.notification.reason.manual"),
+            "mention" to BidaideBundle.message("gh.notification.reason.mention"),
+            "review_requested" to BidaideBundle.message("gh.notification.reason.reviewRequested"),
+            "security_alert" to BidaideBundle.message("gh.notification.reason.securityAlert"),
+            "state_change" to BidaideBundle.message("gh.notification.reason.stateChange"),
+            "subscribed" to BidaideBundle.message("gh.notification.reason.subscribed"),
+            "team_mention" to BidaideBundle.message("gh.notification.reason.teamMention"),
+            "approval_requested" to BidaideBundle.message("gh.notification.reason.approvalRequested"),
+        )
 
     /** [thisRepo] limits the inbox to the repository gh runs in; [all] includes already read notifications. */
     fun list(thisRepo: Boolean, all: Boolean) =

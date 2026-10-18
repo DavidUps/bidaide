@@ -1,5 +1,6 @@
 package com.bidaide.github.ui
 
+import com.bidaide.BidaideBundle
 import com.intellij.ui.DoubleClickListener
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
@@ -73,7 +74,7 @@ class KanbanBoard(
         border = JBUI.Borders.empty()
     }
 
-    fun show(columns: List<Column>, emptyText: String = "Nada que mostrar") {
+    fun show(columns: List<Column>, emptyText: String = BidaideBundle.message("github.board.empty")) {
         val selected = lists.firstNotNullOfOrNull { it.selectedValue }?.id
         row.removeAll()
         lists.clear()
@@ -96,7 +97,7 @@ class KanbanBoard(
         val list = JBList(model)
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
         list.cellRenderer = CardRenderer()
-        list.emptyText.text = "Suelta aquí"
+        list.emptyText.text = BidaideBundle.message("github.board.dropHere")
         list.dragEnabled = true
         list.dropMode = DropMode.ON
         list.transferHandler = Mover(column.key, list)

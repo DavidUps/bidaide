@@ -1,6 +1,7 @@
 package com.bidaide.adb
 
 import com.android.ddmlib.IDevice
+import com.bidaide.BidaideBundle
 import com.bidaide.settings.BidaideSettings
 
 /**
@@ -19,16 +20,16 @@ class DeviceProfile(val name: String, val settings: Map<String, String>) {
                 FONT -> value.toFloatOrNull()?.let { it in 0.5f..3f } == true
                 ROTATION -> value in ROTATIONS
                 LOCALE -> value.isNotBlank()
-                else -> return "clave desconocida «$key»"
+                else -> return BidaideBundle.message("adb.profile.unknownKey", key)
             }
-            if (!ok) return "valor «$value» no válido para «$key»"
+            if (!ok) return BidaideBundle.message("adb.profile.badValue", value, key)
         }
-        return if (settings.isEmpty()) "sin ajustes" else null
+        return if (settings.isEmpty()) BidaideBundle.message("adb.profile.empty") else null
     }
 
     /** Blocking. Returns what was applied, for the notification. */
     fun apply(device: IDevice, packageName: String?): String {
-        problem()?.let { throw AdbException("Perfil «$name»: $it") }
+        problem()?.let { throw AdbException(BidaideBundle.message("adb.profile.invalid", name, it)) }
         for ((key, value) in settings) {
             val on = value == "on"
             when (key) {
@@ -43,7 +44,7 @@ class DeviceProfile(val name: String, val settings: Map<String, String>) {
                 LOCALE -> AdbShell.setAppLocale(device, packageName.orEmpty(), if (value == "system") "" else value)
             }
         }
-        return "Perfil «$name» aplicado: ${settings.entries.joinToString(", ") { "${it.key}=${it.value}" }}"
+        return BidaideBundle.message("adb.profile.applied", name, settings.entries.joinToString(", ") { "${it.key}=${it.value}" })
     }
 
     companion object {

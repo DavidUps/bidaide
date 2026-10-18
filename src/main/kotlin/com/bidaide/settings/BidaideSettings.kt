@@ -1,10 +1,12 @@
 package com.bidaide.settings
 
+import com.bidaide.BidaideBundle
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
+import java.util.Locale
 
 @Service(Service.Level.APP)
 @State(name = "BidaideSettings", storages = [Storage("bidaide.xml")])
@@ -29,6 +31,9 @@ class BidaideSettings : PersistentStateComponent<BidaideSettings.State> {
 
         /** Action ids pinned at the top of the ADB popup, one per line, in display order. See AdbFavorites. */
         var favoriteAdbActions: String = ""
+
+        /** [BidaideLanguage] name of the language of the plugin's texts; blank means the IDE's. */
+        var language: String = ""
 
         /** Canned review comments, one per line as `Name = text`; `\n` in the text is a line break. */
         var savedReplies: String = ""
@@ -84,6 +89,12 @@ class BidaideSettings : PersistentStateComponent<BidaideSettings.State> {
             state.savedReplies = value
         }
 
+    var language: BidaideLanguage
+        get() = BidaideLanguage.entries.firstOrNull { it.name == state.language } ?: BidaideLanguage.AUTO
+        set(value) {
+            state.language = if (value == BidaideLanguage.AUTO) "" else value.name
+        }
+
     override fun getState() = state
 
     override fun loadState(state: State) {
@@ -101,4 +112,16 @@ class BidaideSettings : PersistentStateComponent<BidaideSettings.State> {
             .filter { it.first.isNotEmpty() && it.second.isNotEmpty() }
             .toList()
     }
+}
+
+/** Language of the plugin's texts. [AUTO] follows the IDE, and falls back to English when there is no translation. */
+enum class BidaideLanguage(val locale: Locale?, private val nativeName: String?) {
+    AUTO(null, null),
+    ENGLISH(Locale.ENGLISH, "English"),
+    SPANISH(Locale.forLanguageTag("es"), "Español"),
+    FRENCH(Locale.FRENCH, "Français"),
+    ITALIAN(Locale.ITALIAN, "Italiano");
+
+    /** Each language in its own words, so it can be found whatever language the settings are shown in. */
+    val displayName: String get() = nativeName ?: BidaideBundle.message("settings.language.auto")
 }

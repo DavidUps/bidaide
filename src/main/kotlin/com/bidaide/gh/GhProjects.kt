@@ -1,5 +1,7 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
+
 class GhProjectItem(val id: String, val title: String, val status: String, val type: String, val number: Int?, val url: String?, val repository: String?) {
     override fun toString() = (number?.let { "#$it " }.orEmpty()) + title
 }
@@ -27,9 +29,9 @@ class GhProjectField(val id: String, val name: String, val options: List<GhProje
 
 /** GitHub Projects (v2) through `gh project`, which needs the `project` token scope. */
 object GhProjects {
-    const val SCOPE_HINT = "Falta el permiso de Projects en tu sesión de gh. Ejecuta en una terminal: gh auth refresh -s project"
+    val SCOPE_HINT: String get() = BidaideBundle.message("gh.projects.scopeHint")
 
-    const val NO_STATUS = "Sin estado"
+    val NO_STATUS: String get() = BidaideBundle.message("gh.projects.noStatus")
 
     fun owner() = listOf("repo", "view", "--json", "owner", "--jq", ".owner.login")
 

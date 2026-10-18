@@ -1,7 +1,8 @@
 package com.bidaide.adb
 
 import com.android.ddmlib.IDevice
-import com.bidaide.settings.BidaideSettings
+import com.bidaide.BidaideBundle
+import com.bidaide.Downloads
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.openapi.application.ApplicationManager
@@ -22,14 +23,7 @@ object AdbFiles {
     private const val REMOTE_DIR = "/data/local/tmp"
     private const val TAR_TIMEOUT_SECONDS = 180L
 
-    /** Where captures and exported data go: the configured folder, else the Desktop, else the home folder. */
-    fun captureDir(): File {
-        val configured = BidaideSettings.getInstance().captureDir
-        val home = File(System.getProperty("user.home"))
-        val dir = if (configured.isNotEmpty()) File(configured) else File(home, "Desktop").takeIf { it.isDirectory } ?: home
-        dir.mkdirs()
-        return dir
-    }
+    fun captureDir(): File = Downloads.captureDir()
 
     fun backupDir(packageName: String): File = File(captureDir(), "bidaide-backups/$packageName").apply { mkdirs() }
 
@@ -39,7 +33,7 @@ object AdbFiles {
 
     /** Saves a PNG screenshot and puts the image on the clipboard. */
     fun screenshot(device: IDevice): File {
-        val image = device.screenshot?.asBufferedImage() ?: throw AdbException("El dispositivo no devolvió imagen")
+        val image = device.screenshot?.asBufferedImage() ?: throw AdbException(BidaideBundle.message("adb.files.noScreenshot"))
         val file = File(captureDir(), "screenshot-${safe(device.name)}-${stamp()}.png")
         ImageIO.write(image, "png", file)
         ApplicationManager.getApplication().invokeLater { CopyPasteManager.getInstance().setContents(ImageTransferable(image)) }
@@ -68,7 +62,7 @@ object AdbFiles {
     }
 
     fun stopRecording(device: IDevice): File {
-        val remote = recordings.remove(device.serialNumber) ?: throw AdbException("No hay grabación en curso")
+        val remote = recordings.remove(device.serialNumber) ?: throw AdbException(BidaideBundle.message("adb.files.notRecording"))
         AdbShell.run(device, "pkill -2 screenrecord || kill -2 \$(pidof screenrecord)")
         // screenrecord needs a moment to finalise the MP4 after the signal.
         Thread.sleep(2_000)
@@ -96,7 +90,7 @@ object AdbFiles {
         val dir = com.intellij.openapi.util.io.FileUtil.createTempDirectory("bidaide-db", packageName, true)
         val tar = pullTar(device, packageName, "databases", File(dir, "databases.tar"))
         val extract = CapturingProcessHandler(GeneralCommandLine("tar", "-xf", tar.path, "-C", dir.path)).runProcess(60_000)
-        if (extract.exitCode != 0) throw AdbException("No se pudo descomprimir las bases de datos: ${extract.stderr.trim()}")
+        if (extract.exitCode != 0) throw AdbException(BidaideBundle.message("adb.files.cannotExtract", extract.stderr.trim()))
         tar.delete()
         return dir
     }
@@ -115,7 +109,7 @@ object AdbFiles {
         } finally {
             AdbShell.run(device, "rm -f $remote")
         }
-        if (target.length() == 0L) throw AdbException("No se pudo leer datos de $packageName (¿está instalada y es depurable?)")
+        if (target.length() == 0L) throw AdbException(BidaideBundle.message("adb.files.cannotRead", packageName))
         return target
     }
 
@@ -136,16 +130,16 @@ object AdbFiles {
     // --- Things only the adb binary can do (pairing, reverse port forwarding). ---
 
     fun adbExecutable(project: Project): File =
-        AndroidSdkUtils.findAdb(project).adbPath ?: throw AdbException("No se encuentra el ejecutable adb del SDK")
+        AndroidSdkUtils.findAdb(project).adbPath ?: throw AdbException(BidaideBundle.message("adb.files.noAdb"))
 
     fun adb(project: Project, vararg args: String): String {
         val adb = adbExecutable(project)
         val output = CapturingProcessHandler(GeneralCommandLine(listOf(adb.path) + args)).runProcess(30_000)
         val text = (output.stdout + output.stderr).trim()
-        if (output.isTimeout) throw AdbException("adb ${args.firstOrNull().orEmpty()} agotó el tiempo de espera")
+        if (output.isTimeout) throw AdbException(BidaideBundle.message("adb.files.timeout", args.firstOrNull().orEmpty()))
         // adb reports several failures with exit code 0, so the text is checked too.
         if (output.exitCode != 0 || text.startsWith("error", ignoreCase = true) || text.contains("failed", ignoreCase = true)) {
-            throw AdbException(text.ifEmpty { "adb terminó con código ${output.exitCode}" })
+            throw AdbException(text.ifEmpty { BidaideBundle.message("adb.files.exitCode", output.exitCode) })
         }
         return text
     }

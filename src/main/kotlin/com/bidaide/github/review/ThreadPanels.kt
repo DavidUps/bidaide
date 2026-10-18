@@ -1,5 +1,6 @@
 package com.bidaide.github.review
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhReviewCommands
 import com.bidaide.gh.GhReviewThread
 import com.bidaide.gh.GhThreadComment
@@ -67,7 +68,7 @@ object ThreadPanels {
         val card = card()
         if (thread.isResolved && thread.id !in ui.expandedResolved) {
             val preview = thread.root?.let { "${it.author}: ${it.body.lineSequence().firstOrNull().orEmpty().take(70)}" }.orEmpty()
-            card.add(row(width, tag("✓ Resuelto"), JBLabel(preview), ActionLink("Mostrar") {
+            card.add(row(width, tag(BidaideBundle.message("github.thread.resolved")), JBLabel(preview), ActionLink(BidaideBundle.message("github.thread.show")) {
                 ui.expandedResolved += thread.id
                 rerender()
             }))
@@ -75,8 +76,8 @@ object ThreadPanels {
         }
 
         val tags = listOfNotNull(
-            "✓ Resuelto".takeIf { thread.isResolved },
-            "Obsoleto (línea original ${thread.originalLine ?: "?"})".takeIf { thread.isOutdated },
+            BidaideBundle.message("github.thread.resolved").takeIf { thread.isResolved },
+            BidaideBundle.message("github.thread.outdated", thread.originalLine ?: "?").takeIf { thread.isOutdated },
         )
         if (tags.isNotEmpty()) card.add(row(width, *tags.map(::tag).toTypedArray()))
 
@@ -84,13 +85,13 @@ object ThreadPanels {
 
         if (ui.replyingThreadId == thread.id) {
             card.add(InputPanel(
-                "Respuesta", width, embedded = true,
+                BidaideBundle.message("github.thread.reply.title"), width, embedded = true,
                 onCancel = {
                     ui.replyingThreadId = null
                     rerender()
                 },
-                submits = arrayOf(InputPanel.Submit(if (session.hasPendingReview) "Añadir a la review" else "Responder") { body, done ->
-                    session.mutate("Respondiendo en PR #${session.number}", GhReviewCommands.reply(thread.id, body)) { ok ->
+                submits = arrayOf(InputPanel.Submit(if (session.hasPendingReview) BidaideBundle.message("github.review.addToReview") else BidaideBundle.message("github.thread.reply")) { body, done ->
+                    session.mutate(BidaideBundle.message("github.thread.replying", session.number), GhReviewCommands.reply(thread.id, body)) { ok ->
                         if (ok) ui.replyingThreadId = null
                         done(ok)
                     }
@@ -98,18 +99,18 @@ object ThreadPanels {
             ).also { it.focusLater() }.leftAligned())
         } else {
             val footer = ArrayList<JComponent>()
-            if (thread.canReply) footer += ActionLink("Responder") {
+            if (thread.canReply) footer += ActionLink(BidaideBundle.message("github.thread.reply")) {
                 ui.replyingThreadId = thread.id
                 rerender()
             }
-            if (!thread.isResolved && thread.canResolve) footer += ActionLink("Resolver hilo") {
+            if (!thread.isResolved && thread.canResolve) footer += ActionLink(BidaideBundle.message("github.thread.resolve")) {
                 ui.expandedResolved -= thread.id
-                session.mutate("Resolviendo hilo", GhReviewCommands.setResolved(thread.id, true))
+                session.mutate(BidaideBundle.message("github.thread.resolving"), GhReviewCommands.setResolved(thread.id, true))
             }
-            if (thread.isResolved && thread.canUnresolve) footer += ActionLink("Reabrir hilo") {
-                session.mutate("Reabriendo hilo", GhReviewCommands.setResolved(thread.id, false))
+            if (thread.isResolved && thread.canUnresolve) footer += ActionLink(BidaideBundle.message("github.thread.unresolve")) {
+                session.mutate(BidaideBundle.message("github.thread.unresolving"), GhReviewCommands.setResolved(thread.id, false))
             }
-            if (thread.isResolved) footer += ActionLink("Ocultar") {
+            if (thread.isResolved) footer += ActionLink(BidaideBundle.message("github.thread.hide")) {
                 ui.expandedResolved -= thread.id
                 rerender()
             }
@@ -124,26 +125,29 @@ object ThreadPanels {
     ) {
         val header = ArrayList<JComponent>()
         header += JBLabel("<html><b>${Html.esc(comment.author)}</b> <font color=\"gray\">${Html.date(comment.createdAt)}</font></html>")
-        if (comment.pending) header += tag("Pendiente")
-        if (comment.canUpdate) header += ActionLink("Editar") {
+        if (comment.pending) header += tag(BidaideBundle.message("github.thread.pending"))
+        if (comment.canUpdate) header += ActionLink(BidaideBundle.message("github.thread.edit")) {
             ui.editingCommentId = comment.id
             rerender()
         }
-        if (comment.canDelete) header += ActionLink("Borrar") {
-            val answer = Messages.showYesNoDialog(session.project, "¿Borrar este comentario?", "Borrar comentario", Messages.getQuestionIcon())
-            if (answer == Messages.YES) session.mutate("Borrando comentario", GhReviewCommands.deleteComment(comment.id))
+        if (comment.canDelete) header += ActionLink(BidaideBundle.message("github.thread.delete")) {
+            val answer = Messages.showYesNoDialog(
+                session.project, BidaideBundle.message("github.thread.delete.confirm"), BidaideBundle.message("github.thread.delete.title"),
+                Messages.getQuestionIcon(),
+            )
+            if (answer == Messages.YES) session.mutate(BidaideBundle.message("github.thread.deleting"), GhReviewCommands.deleteComment(comment.id))
         }
         card.add(row(width, *header.toTypedArray()))
 
         if (ui.editingCommentId == comment.id) {
             card.add(InputPanel(
-                "Editar comentario", width, embedded = true, initialText = comment.body,
+                BidaideBundle.message("github.thread.edit.title"), width, embedded = true, initialText = comment.body,
                 onCancel = {
                     ui.editingCommentId = null
                     rerender()
                 },
-                submits = arrayOf(InputPanel.Submit("Guardar") { body, done ->
-                    session.mutate("Guardando comentario", GhReviewCommands.updateComment(comment.id, body)) { ok ->
+                submits = arrayOf(InputPanel.Submit(BidaideBundle.message("github.dialog.save")) { body, done ->
+                    session.mutate(BidaideBundle.message("github.thread.saving"), GhReviewCommands.updateComment(comment.id, body)) { ok ->
                         if (ok) ui.editingCommentId = null
                         done(ok)
                     }
@@ -157,13 +161,13 @@ object ThreadPanels {
         val suggestion = Suggestions.extract(comment.body)
         val extras = ArrayList<JComponent>()
         if (suggestion != null && !thread.isOutdated && !thread.isResolved && thread.line != null && thread.side == "RIGHT") {
-            extras += ActionLink("Aplicar sugerencia") { Suggestions.apply(session, thread, suggestion) }
+            extras += ActionLink(BidaideBundle.message("github.suggestion.apply")) { Suggestions.apply(session, thread, suggestion) }
         }
         for (reaction in comment.reactions) {
             val content = ReactionContent.entries.firstOrNull { it.name == reaction.content } ?: continue
             extras += ActionLink("${content.emoji} ${reaction.count}") {
-                session.mutate("Reaccionando", GhReviewCommands.setReaction(comment.id, content, !reaction.viewerHasReacted))
-            }.apply { toolTipText = if (reaction.viewerHasReacted) "Quitar tu reacción" else "Sumarte" }
+                session.mutate(BidaideBundle.message("github.thread.reacting"), GhReviewCommands.setReaction(comment.id, content, !reaction.viewerHasReacted))
+            }.apply { toolTipText = if (reaction.viewerHasReacted) BidaideBundle.message("github.thread.removeReaction") else BidaideBundle.message("github.thread.joinReaction") }
         }
         if (!comment.pending) {
             lateinit var add: ActionLink
@@ -172,11 +176,11 @@ object ThreadPanels {
                     .setRenderer(SimpleListCellRenderer.create("") { it.emoji })
                     .setItemChosenCallback { chosen ->
                         val mine = comment.reactions.any { it.content == chosen.name && it.viewerHasReacted }
-                        session.mutate("Reaccionando", GhReviewCommands.setReaction(comment.id, chosen, !mine))
+                        session.mutate(BidaideBundle.message("github.thread.reacting"), GhReviewCommands.setReaction(comment.id, chosen, !mine))
                     }
                     .createPopup().showUnderneathOf(add)
             }
-            add.toolTipText = "Añadir reacción"
+            add.toolTipText = BidaideBundle.message("github.thread.addReaction")
             extras += add
         }
         if (extras.isNotEmpty()) card.add(row(width, *extras.toTypedArray()))
@@ -232,12 +236,12 @@ class InputPanel(
                 button.addActionListener { send(submit) }
             })
         }
-        bar.add(JButton("Cancelar").also { button ->
+        bar.add(JButton(BidaideBundle.message("common.cancel")).also { button ->
             buttons += button
             button.addActionListener { onCancel() }
         })
         if (suggestionSeed != null) {
-            bar.add(ActionLink("Insertar sugerencia") {
+            bar.add(ActionLink(BidaideBundle.message("github.suggestion.insert")) {
                 area.insert("```suggestion\n$suggestionSeed\n```\n", area.caretPosition)
                 area.requestFocusInWindow()
             })

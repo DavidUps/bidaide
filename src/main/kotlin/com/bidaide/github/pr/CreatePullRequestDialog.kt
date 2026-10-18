@@ -1,5 +1,6 @@
 package com.bidaide.github.pr
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhException
 import com.bidaide.github.ui.TitleBodyDialog
 import com.intellij.openapi.project.Project
@@ -18,14 +19,14 @@ class CreatePullRequestDialog(project: Project, branch: String, defaultBranch: S
     private val reviewersField = JBTextField()
     private val assigneesField = JBTextField()
     private val labelsField = JBTextField()
-    private val draftBox = JBCheckBox("Crear como borrador")
-    private val pushBox = JBCheckBox("Hacer push de «$branch» antes de crear", true)
+    private val draftBox = JBCheckBox(BidaideBundle.message("github.pr.create.draft"))
+    private val pushBox = JBCheckBox(BidaideBundle.message("github.pr.create.push", branch), true)
 
-    private val dialog = TitleBodyDialog(project, "Nueva pull request desde $branch", "Crear", draft.title, draft.body) {
-        row("Rama base:") { cell(baseField) }
-        row("Reviewers:") { cell(reviewersField).align(AlignX.FILL).comment("Usuarios o equipos separados por comas.") }
-        row("Asignados:") { cell(assigneesField).align(AlignX.FILL).comment("@me para asignártela.") }
-        row("Labels:") { cell(labelsField).align(AlignX.FILL) }
+    private val dialog = TitleBodyDialog(project, BidaideBundle.message("github.pr.create.title", branch), BidaideBundle.message("github.pr.create.ok"), draft.title, draft.body) {
+        row(BidaideBundle.message("github.pr.create.base")) { cell(baseField) }
+        row(BidaideBundle.message("github.pr.create.reviewers")) { cell(reviewersField).align(AlignX.FILL).comment(BidaideBundle.message("github.pr.create.reviewers.comment")) }
+        row(BidaideBundle.message("github.metadata.assignees")) { cell(assigneesField).align(AlignX.FILL).comment(BidaideBundle.message("github.pr.create.assignees.comment")) }
+        row(BidaideBundle.message("github.metadata.labels")) { cell(labelsField).align(AlignX.FILL) }
         row {
             cell(draftBox)
             cell(pushBox)
@@ -85,12 +86,12 @@ object PullRequestGit {
 
     /** `gh pr create` cannot push without a prompt, so the branch is pushed with the IDE's git first. Blocking. */
     fun pushCurrentBranch(project: Project, repository: GitRepository, branch: String) {
-        val remote = remote(repository) ?: throw GhException("El repositorio no tiene remotos.")
+        val remote = remote(repository) ?: throw GhException(BidaideBundle.message("github.pr.create.noRemotes"))
         val handler = GitLineHandler(project, repository.root, GitCommand.PUSH)
         handler.setUrls(remote.urls)
         handler.addParameters("--set-upstream", remote.name, branch)
         val result = Git.getInstance().runCommand(handler)
-        if (!result.success()) throw GhException("git push falló: ${result.errorOutputAsJoinedString}")
+        if (!result.success()) throw GhException(BidaideBundle.message("github.pr.create.pushFailed", result.errorOutputAsJoinedString))
         repository.update()
     }
 }

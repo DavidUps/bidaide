@@ -1,6 +1,7 @@
 package com.bidaide.adb
 
 import com.android.ddmlib.IDevice
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.github.issues.IssuesPanel
 import com.bidaide.settings.BidaideSettings
@@ -34,7 +35,7 @@ private fun VirtualFile.isApk() = !isDirectory && extension.equals("apk", ignore
 class AdbInstallApkAction : AdbBaseAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("apk").withTitle("APK a instalar")
+        val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("apk").withTitle(BidaideBundle.message("adb.installApk.title"))
         val file = FileChooser.chooseFile(descriptor, project, null) ?: return
         ApkInstaller.install(project, VfsUtilCore.virtualToIoFile(file))
     }
@@ -59,20 +60,20 @@ class AdbLocationAction : AdbBaseAction() {
         val project = e.project ?: return
         val history = History(project, "Bidaide.Adb.Locations")
         val input = Messages.showInputDialog(
-            project, "Latitud, longitud (p. ej. 40.4168, -3.7038). Solo emuladores.", "Simular ubicación GPS", null,
+            project, BidaideBundle.message("adb.location.prompt"), BidaideBundle.message("adb.location.title"), null,
             history.values().firstOrNull().orEmpty(), null,
         ) ?: return
         val position = parsePosition(input)
         if (position == null) {
-            Notifier.warn(project, "ADB", "Ubicación no válida: $input")
+            Notifier.warn(project, "ADB", BidaideBundle.message("adb.location.invalid", input))
             return
         }
         history.remember(input.trim())
         AdbTargetResolver.resolve(project, needsPackage = false) { devices, _ ->
-            AdbTasks.run(project, "Simular ubicación", devices, null) { ctx ->
+            AdbTasks.run(project, BidaideBundle.message("adb.location.task"), devices, null) { ctx ->
                 // The console wants longitude first.
                 emulatorConsole(ctx, "geo", "fix", position.second.toString(), position.first.toString())
-                "Ubicación fijada en ${position.first}, ${position.second}"
+                BidaideBundle.message("adb.location.done", position.first, position.second)
             }
         }
     }
@@ -94,16 +95,16 @@ class AdbSendTextAction : AdbBaseAction() {
         val project = e.project ?: return
         val history = History(project, "Bidaide.Adb.Texts")
         val combo = ComboBox(history.values().toTypedArray()).apply { isEditable = true }
-        val enterBox = JBCheckBox("Pulsar Enter al final")
+        val enterBox = JBCheckBox(BidaideBundle.message("adb.sendText.enter"))
         val dialog = object : DialogWrapper(project) {
             init {
-                title = "Enviar texto al dispositivo"
-                setOKButtonText("Enviar")
+                title = BidaideBundle.message("adb.sendText.title")
+                setOKButtonText(BidaideBundle.message("adb.sendText.ok"))
                 init()
             }
 
             override fun createCenterPanel(): JComponent = panel {
-                row("Texto:") { cell(combo).align(AlignX.FILL).comment("Se escribe en el campo con foco. Solo caracteres ASCII: sin tildes ni emojis.") }
+                row(BidaideBundle.message("adb.sendText.text")) { cell(combo).align(AlignX.FILL).comment(BidaideBundle.message("adb.sendText.comment")) }
                 row { cell(enterBox) }
             }
 
@@ -112,8 +113,8 @@ class AdbSendTextAction : AdbBaseAction() {
             override fun doValidate(): ValidationInfo? {
                 val text = combo.editor.item?.toString().orEmpty()
                 return when {
-                    text.isEmpty() -> ValidationInfo("Escribe el texto", combo)
-                    text.any { it.code > 126 || it.code < 32 } -> ValidationInfo("adb solo puede enviar caracteres ASCII", combo)
+                    text.isEmpty() -> ValidationInfo(BidaideBundle.message("adb.sendText.empty"), combo)
+                    text.any { it.code > 126 || it.code < 32 } -> ValidationInfo(BidaideBundle.message("adb.sendText.notAscii"), combo)
                     else -> null
                 }
             }
@@ -122,9 +123,9 @@ class AdbSendTextAction : AdbBaseAction() {
         val text = combo.editor.item.toString()
         history.remember(text)
         AdbTargetResolver.resolve(project, needsPackage = false) { devices, _ ->
-            AdbTasks.run(project, "Enviar texto", devices, null) { ctx ->
+            AdbTasks.run(project, BidaideBundle.message("adb.sendText.task"), devices, null) { ctx ->
                 AdbShell.inputText(ctx.device, text, enterBox.isSelected)
-                "Texto enviado (${text.length} caracteres)"
+                BidaideBundle.message("adb.sendText.done", text.length)
             }
         }
     }
@@ -139,7 +140,7 @@ object BugReports {
 
     fun collect(device: IDevice, packageName: String): Info = Info(
         device = listOf(AdbShell.property(device, "ro.product.manufacturer"), AdbShell.property(device, "ro.product.model"))
-            .filter { it.isNotBlank() }.joinToString(" ").ifEmpty { device.name } + if (device.isEmulator) " (emulador)" else "",
+            .filter { it.isNotBlank() }.joinToString(" ").ifEmpty { device.name } + if (device.isEmulator) BidaideBundle.message("adb.bugReport.emulator") else "",
         android = AdbShell.property(device, "ro.build.version.release"),
         sdk = AdbShell.property(device, "ro.build.version.sdk"),
         packageName = packageName,
@@ -147,9 +148,10 @@ object BugReports {
     )
 
     fun body(info: Info, logcat: String): String = buildString {
-        append("## Qué pasa\n\n\n## Pasos para reproducir\n\n1. \n\n## Entorno\n\n")
-        append("- App: `${info.packageName}` ${info.appVersion ?: "(versión desconocida)"}\n")
-        append("- Dispositivo: ${info.device}\n")
+        append("## ${BidaideBundle.message("adb.bugReport.what")}\n\n\n## ${BidaideBundle.message("adb.bugReport.steps")}\n\n1. \n\n")
+        append("## ${BidaideBundle.message("adb.bugReport.environment")}\n\n")
+        append("- App: `${info.packageName}` ${info.appVersion ?: BidaideBundle.message("adb.bugReport.unknownVersion")}\n")
+        append("- ${BidaideBundle.message("adb.bugReport.device")}: ${info.device}\n")
         append("- Android: ${info.android} (API ${info.sdk})\n")
         val log = logcat.trim().takeLast(MAX_LOG_CHARS)
         if (log.isNotEmpty()) {
@@ -168,7 +170,7 @@ class AdbBugReportAction : AdbBaseAction() {
             val packageName = pkg ?: return@resolve
             val device = devices.first()
             AdbTasks.fetch(
-                project, "Informe de bug",
+                project, BidaideBundle.message("adb.bugReport.title"),
                 work = {
                     // Some screens (secure flag) cannot be captured; the report is still worth filing.
                     val screenshot = runCatching { AdbFiles.screenshot(device) }.getOrNull()
@@ -179,8 +181,7 @@ class AdbBugReportAction : AdbBaseAction() {
                     // The GitHub API cannot attach images to an issue; pasting on github.com is the only way.
                     NotificationGroupManager.getInstance().getNotificationGroup("Bidaide")
                         .createNotification(
-                            "Informe de bug", "Captura guardada en ${file.name} y copiada al portapapeles. GitHub no deja adjuntarla desde aquí: " +
-                                "pégala en la issue desde github.com.", NotificationType.INFORMATION,
+                            BidaideBundle.message("adb.bugReport.title"), BidaideBundle.message("adb.bugReport.screenshot", file.name), NotificationType.INFORMATION,
                         )
                         .addAction(NotificationAction.createSimple(RevealFileAction.getActionName()) { RevealFileAction.openFile(file) })
                         .notify(project)
@@ -203,18 +204,18 @@ class AdbProfilesGroup : ActionGroup(), DumbAware {
         DeviceProfile.parse(BidaideSettings.getInstance().deviceProfiles).map { profile ->
             object : AdbBaseAction() {
                 init {
-                    templatePresentation.text = "ADB: Perfil «${profile.name}»"
+                    templatePresentation.text = BidaideBundle.message("adb.profile.action", profile.name)
                     templatePresentation.description = profile.settings.entries.joinToString(", ") { "${it.key}=${it.value}" }
                 }
 
                 override fun actionPerformed(e: AnActionEvent) {
                     val project = e.project ?: return
                     profile.problem()?.let {
-                        Notifier.warn(project, "ADB", "Perfil «${profile.name}»: $it. Corrígelo en Settings → Tools → Bidaide.")
+                        Notifier.warn(project, "ADB", BidaideBundle.message("adb.profile.problem", profile.name, it))
                         return
                     }
                     AdbTargetResolver.resolve(project, profile.needsPackage) { devices, packageName ->
-                        AdbTasks.run(project, "Perfil ${profile.name}", devices, packageName) { ctx -> profile.apply(ctx.device, packageName) }
+                        AdbTasks.run(project, BidaideBundle.message("adb.profile.task", profile.name), devices, packageName) { ctx -> profile.apply(ctx.device, packageName) }
                     }
                 }
             }

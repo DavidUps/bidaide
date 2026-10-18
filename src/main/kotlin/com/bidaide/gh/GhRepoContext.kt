@@ -1,5 +1,6 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
@@ -31,5 +32,5 @@ object GhRepoContext {
         repository(project, file)?.root?.let(VfsUtilCore::virtualToIoFile)
 
     fun requireWorkDir(project: Project, file: VirtualFile? = null): File =
-        workDir(project, file) ?: throw GhException("Este proyecto no tiene ningún repositorio git.")
+        workDir(project, file) ?: throw GhException(BidaideBundle.message("gh.repo.noGit"))
 }

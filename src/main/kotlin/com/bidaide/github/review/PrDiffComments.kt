@@ -1,5 +1,6 @@
 package com.bidaide.github.review
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhReviewCommands
@@ -125,7 +126,8 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
     private class HunkCheckbox(private val key: String, private val viewed: Boolean, private val onToggle: (Boolean) -> Unit) : GutterIconRenderer() {
         override fun getIcon(): Icon = if (viewed) AllIcons.Diff.GutterCheckBoxSelected else AllIcons.Diff.GutterCheckBox
 
-        override fun getTooltipText() = if (viewed) "Cambio visto. Clic para desmarcarlo" else "Marcar este cambio como visto"
+        override fun getTooltipText() =
+            if (viewed) BidaideBundle.message("github.review.hunk.viewed") else BidaideBundle.message("github.review.hunk.markViewed")
 
         override fun isNavigateAction() = true
 
@@ -157,7 +159,7 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
         if (end == null || !review.commentable.contains(end.first, end.second)) {
             Notifier.warn(
                 session.project, "PR #${session.number}",
-                "GitHub solo admite comentarios en líneas cambiadas o en su contexto cercano.",
+                BidaideBundle.message("github.review.notCommentable"),
             )
             return
         }
@@ -178,21 +180,27 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
             if (ok) closeDraft()
             done(ok)
         }
-        val toReview = InputPanel.Submit(if (session.hasPendingReview) "Añadir a la review" else "Iniciar review") { body, done ->
+        val toReview = InputPanel.Submit(
+            if (session.hasPendingReview) BidaideBundle.message("github.review.addToReview") else BidaideBundle.message("github.review.startReview"),
+        ) { body, done ->
             val args = GhReviewCommands.addPendingThread(session.state.pullRequestId, path, body, side, end.second, startLine)
-            session.mutate("Añadiendo comentario a la review", args, finish(done))
+            session.mutate(BidaideBundle.message("github.review.addingComment"), args, finish(done))
         }
-        val now = InputPanel.Submit("Comentar ahora") { body, done ->
+        val now = InputPanel.Submit(BidaideBundle.message("github.review.commentNow")) { body, done ->
             val args = GhCommands.prCreateReviewComment(session.number, body, session.headSha, path, side, end.second, startLine)
-            session.mutate("Comentando PR #${session.number}", args, finish(done))
+            session.mutate(BidaideBundle.message("github.pr.comment.task", session.number), args, finish(done))
         }
         // GitHub refuses standalone comments while a pending review exists.
         val submits = if (session.hasPendingReview) arrayOf(toReview) else arrayOf(now, toReview)
 
         closeDraft()
-        val label = if (startLine != null && startLine != end.second) "Líneas $startLine–${end.second}" else "Línea ${end.second}"
+        val label = if (startLine != null && startLine != end.second) {
+            BidaideBundle.message("github.review.lines", startLine, end.second)
+        } else {
+            BidaideBundle.message("github.review.line", end.second)
+        }
         val panel = InputPanel(
-            "$label · comentario nuevo", cardWidth(editor), suggestionSeed = seed, onCancel = ::closeDraft, submits = submits,
+            BidaideBundle.message("github.review.newComment", label), cardWidth(editor), suggestionSeed = seed, onCancel = ::closeDraft, submits = submits,
         )
         draft = addInlay(editor, lastLine, panel)
         panel.focusLater()
@@ -248,7 +256,10 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
 }
 
 /** "Comment on this line" for PR review diffs; lives in the diff toolbar and the diff editor context menu. */
-class AddPrCommentAction : AnAction("Comentar línea en la PR", "Añade un comentario de revisión en esta línea", AllIcons.General.Balloon),
+class AddPrCommentAction : AnAction(
+    BidaideBundle.message("action.Bidaide.Pr.AddComment.text"), BidaideBundle.message("action.Bidaide.Pr.AddComment.description"),
+    AllIcons.General.Balloon,
+),
     DumbAware {
     override fun getActionUpdateThread() = ActionUpdateThread.EDT
 

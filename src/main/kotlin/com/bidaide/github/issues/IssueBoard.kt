@@ -1,14 +1,22 @@
 package com.bidaide.github.issues
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhIssue
 import com.bidaide.gh.display
 import com.bidaide.github.ui.KanbanBoard
+import java.util.function.Supplier
 
 /** Turns a list of issues into board columns, and a card move into the `gh` command that makes it true. */
 object IssueBoard {
-    enum class GroupBy(val label: String, val none: String) {
-        LABEL("Label", "Sin label"), ASSIGNEE("Asignado", "Sin asignar"), MILESTONE("Milestone", "Sin milestone"), STATE("Estado", "");
+    enum class GroupBy(private val labelKey: Supplier<String>, private val noneKey: Supplier<String>?) {
+        LABEL(BidaideBundle.lazyMessage("github.board.label"), BidaideBundle.lazyMessage("github.board.noLabel")),
+        ASSIGNEE(BidaideBundle.lazyMessage("github.board.assignee"), BidaideBundle.lazyMessage("github.board.noAssignee")),
+        MILESTONE(BidaideBundle.lazyMessage("github.board.milestone"), BidaideBundle.lazyMessage("github.board.noMilestone")),
+        STATE(BidaideBundle.lazyMessage("github.board.state"), null);
+
+        val label: String get() = labelKey.get()
+        val none: String get() = noneKey?.get().orEmpty()
 
         override fun toString() = label
     }
@@ -31,7 +39,7 @@ object IssueBoard {
      */
     fun columns(issues: List<GhIssue>, groupBy: GroupBy, known: List<String> = emptyList()): List<KanbanBoard.Column> {
         if (groupBy == GroupBy.STATE) {
-            return listOf(OPEN to "Abiertas", CLOSED to "Cerradas").map { (key, title) ->
+            return listOf(OPEN to BidaideBundle.message("github.issue.state.openPlural"), CLOSED to BidaideBundle.message("github.issue.state.closedPlural")).map { (key, title) ->
                 KanbanBoard.Column(key, title, issues.filter { values(it, groupBy).single() == key }.map { card(it, groupBy) })
             }
         }
@@ -66,7 +74,7 @@ object IssueBoard {
     }
 
     fun moveDescription(number: Int, groupBy: GroupBy, to: String): String = when (groupBy) {
-        GroupBy.STATE -> "Issue #$number ${if (to == OPEN) "reabierta" else "cerrada"}"
+        GroupBy.STATE -> if (to == OPEN) BidaideBundle.message("github.issue.reopen.done", number) else BidaideBundle.message("github.issue.close.done", number)
         else -> "Issue #$number → ${to.ifEmpty { groupBy.none.lowercase() }}"
     }
 }

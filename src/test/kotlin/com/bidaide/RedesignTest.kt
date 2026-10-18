@@ -21,15 +21,15 @@ class RedesignTest {
 
     @Test
     fun `times read like on github`() {
-        assertEquals("ahora", ago("2026-10-13T09:59:40Z"))
-        assertEquals("hace 8 min", ago("2026-10-13T09:52:00Z"))
-        assertEquals("hace 3 h", ago("2026-10-13T06:10:00Z"))
-        assertEquals("ayer", ago("2026-10-12T08:00:00Z"))
-        assertEquals("hace 14 días", ago("2026-09-29T09:00:00Z"))
-        assertEquals("el 28 ago", ago("2026-08-28T09:00:00Z"))
-        assertEquals("el 3 dic 2025", ago("2025-12-03T09:00:00Z"))
-        // Clock skew between this machine and GitHub must not produce "hace -1 min".
-        assertEquals("ahora", ago("2026-10-13T10:00:30Z"))
+        assertEquals("now", ago("2026-10-13T09:59:40Z"))
+        assertEquals("8 min ago", ago("2026-10-13T09:52:00Z"))
+        assertEquals("3 h ago", ago("2026-10-13T06:10:00Z"))
+        assertEquals("yesterday", ago("2026-10-12T08:00:00Z"))
+        assertEquals("14 days ago", ago("2026-09-29T09:00:00Z"))
+        assertEquals("on Aug 28", ago("2026-08-28T09:00:00Z"))
+        assertEquals("on Dec 3, 2025", ago("2025-12-03T09:00:00Z"))
+        // Clock skew between this machine and GitHub must not produce "-1 min ago".
+        assertEquals("now", ago("2026-10-13T10:00:30Z"))
         assertEquals("", ago(null))
         assertEquals("", ago("not a date"))
     }
@@ -44,13 +44,13 @@ class RedesignTest {
         ).single()
         val row = PullRequestRows.row(pr, now)
         assertEquals("Clear the findings", row.title)
-        assertEquals("#5 · abierta hace 20 min por DavidUps · fix/report → main", row.subtitle)
+        assertEquals("#5 · opened 20 min ago by DavidUps · fix/report → main", row.subtitle)
         assertEquals(listOf("bug"), row.labels.map { it.text })
         assertEquals(Color(0xd73a4a), row.labels.single().tone)
-        assertEquals(listOf("Falta review", "✗ checks"), row.badges.map { it.text })
+        assertEquals(listOf("Review required", "✗ checks"), row.badges.map { it.text })
         assertEquals(listOf("ana", "luis"), row.people.map { it.login })
-        assertEquals("hace 8 min", row.time)
-        assertEquals("Abierta", PullRequestRows.state(pr).label)
+        assertEquals("8 min ago", row.time)
+        assertEquals("Open", PullRequestRows.state(pr).label)
     }
 
     @Test
@@ -61,15 +61,15 @@ class RedesignTest {
                  "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"SUCCESS"}]},
                 {"number":3,"title":"old gh","state":"CLOSED"}]"""
         )
-        assertTrue(PullRequestRows.row(draft, now).subtitle.startsWith("#1 · borrador, abierta"))
+        assertTrue(PullRequestRows.row(draft, now).subtitle.startsWith("#1 · draft, opened"))
         // Nobody assigned: the author stands in, so there is always a face.
         assertEquals(listOf("ana"), PullRequestRows.row(draft, now).people.map { it.login })
-        assertEquals("Borrador", PullRequestRows.state(draft).label)
-        assertEquals("Fusionada", PullRequestRows.state(merged).label)
-        assertEquals(listOf("Aprobada", "✓ checks"), PullRequestRows.row(merged, now).badges.map { it.text })
+        assertEquals("Draft", PullRequestRows.state(draft).label)
+        assertEquals("Merged", PullRequestRows.state(merged).label)
+        assertEquals(listOf("Approved", "✓ checks"), PullRequestRows.row(merged, now).badges.map { it.text })
         assertTrue(PullRequestRows.row(merged, now).people.isEmpty())
-        assertTrue(PullRequestRows.summary(merged, now).contains("fusionó"))
-        assertEquals("Cerrada", PullRequestRows.state(bare).label)
+        assertTrue(PullRequestRows.summary(merged, now).contains("merged"))
+        assertEquals("Closed", PullRequestRows.state(bare).label)
         assertTrue(PullRequestRows.row(bare, now).badges.isEmpty())
         assertEquals(Tones.GRAY, Tones.ofLabel(null))
         assertEquals(Tones.GRAY, Tones.ofLabel("nope"))
@@ -102,16 +102,16 @@ class RedesignTest {
     fun `the inbox sidebar offers filters and one view per repository`() {
         val views = Inbox.views(notifications)
         assertEquals(
-            listOf("Bandeja", "Asignadas", "Participando", "Menciones", "Menciones a equipo", "Review solicitada", "DavidUps/bidaide", "acme/app", "acme/lib"),
+            listOf("Inbox", "Assigned", "Participating", "Mentioned", "Team mentioned", "Review requested", "DavidUps/bidaide", "acme/app", "acme/lib"),
             views.map { it.label },
         )
         assertEquals(listOf(null, Inbox.FILTERS, Inbox.FILTERS, Inbox.FILTERS, Inbox.FILTERS, Inbox.FILTERS, Inbox.REPOSITORIES, Inbox.REPOSITORIES, Inbox.REPOSITORIES), views.map { it.section })
         fun unread(label: String) = Inbox.unread(views.first { it.label == label }, notifications)
-        assertEquals(3, unread("Bandeja"))
-        assertEquals(1, unread("Asignadas"))
+        assertEquals(3, unread("Inbox"))
+        assertEquals(1, unread("Assigned"))
         // Watching a repository is not taking part in a conversation.
-        assertEquals(2, unread("Participando"))
-        assertEquals(1, unread("Review solicitada"))
+        assertEquals(2, unread("Participating"))
+        assertEquals(1, unread("Review requested"))
         assertEquals(1, unread("DavidUps/bidaide"))
         assertEquals("https://avatars.githubusercontent.com/u/1?v=4", notifications.first().ownerAvatarUrl)
         assertEquals("repo:acme/app", views[7].key)
@@ -125,9 +125,9 @@ class RedesignTest {
         assertEquals(listOf("2"), Inbox.filter(notifications, repo, unreadOnly = true, text = "").map { it.id })
         assertEquals(listOf("3", "4"), Inbox.filter(notifications, Inbox.ALL, unreadOnly = true, text = " ACME ").map { it.id })
         assertEquals(listOf("4"), Inbox.filter(notifications, Inbox.ALL, unreadOnly = false, text = "login").map { it.id })
-        assertTrue(Inbox.filter(notifications, views.first { it.label == "Menciones" }, false, "").isEmpty())
-        assertEquals("review solicitada", Inbox.reason(notifications[1]))
-        assertEquals("siguiendo", Inbox.reason(notifications[2]))
+        assertTrue(Inbox.filter(notifications, views.first { it.label == "Mentioned" }, false, "").isEmpty())
+        assertEquals("review requested", Inbox.reason(notifications[1]))
+        assertEquals("watching", Inbox.reason(notifications[2]))
         assertFalse(Inbox.views(emptyList()).any { it.section == Inbox.REPOSITORIES })
         assertEquals(listOf("api", "notifications?per_page=100&all=true"), GhNotifications.inbox())
     }

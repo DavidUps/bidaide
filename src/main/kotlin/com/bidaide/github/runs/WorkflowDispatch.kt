@@ -1,5 +1,6 @@
 package com.bidaide.github.runs
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -63,15 +64,15 @@ object WorkflowDispatch {
     /** Lets the user pick a workflow, fill its inputs and start it. */
     fun start(project: Project, onStarted: () -> Unit) {
         GhCli.async(
-            project, "Cargando workflows",
+            project, BidaideBundle.message("github.workflow.loading"),
             work = { GhJson.workflows(GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.workflowList())).filter { it.state == "active" } },
         ) { workflows ->
             if (workflows.isEmpty()) {
-                Notifier.warn(project, "GitHub Actions", "Este repositorio no tiene workflows activos.")
+                Notifier.warn(project, "GitHub Actions", BidaideBundle.message("github.workflow.none"))
                 return@async
             }
             JBPopupFactory.getInstance().createPopupChooserBuilder(workflows)
-                .setTitle("Workflow a lanzar")
+                .setTitle(BidaideBundle.message("github.workflow.choose"))
                 .setRenderer(SimpleListCellRenderer.create("") { "${it.name}  (${it.path.substringAfterLast('/')})" })
                 .setNamerForFiltering { it.name }
                 .setItemChosenCallback { configure(project, it, onStarted) }
@@ -82,20 +83,20 @@ object WorkflowDispatch {
 
     private fun configure(project: Project, workflow: GhWorkflow, onStarted: () -> Unit) {
         GhCli.async(
-            project, "Leyendo ${workflow.name}",
+            project, BidaideBundle.message("github.workflow.reading", workflow.name),
             work = {
                 parseInputs(GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.workflowYaml(workflow.id)))
-                    ?: throw GhException("«${workflow.name}» no tiene el disparador workflow_dispatch, así que no se puede lanzar a mano.")
+                    ?: throw GhException(BidaideBundle.message("github.workflow.noDispatch", workflow.name))
             },
         ) { inputs ->
             val branch = GhRepoContext.repository(project)?.currentBranchName.orEmpty()
             val dialog = DispatchDialog(project, workflow, branch, inputs)
             if (!dialog.showAndGet()) return@async
             GhCli.async(
-                project, "Lanzando ${workflow.name}",
+                project, BidaideBundle.message("github.workflow.running", workflow.name),
                 work = { GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.workflowRun(workflow.id, dialog.ref, dialog.values)) },
             ) {
-                Notifier.info(project, "GitHub Actions", "«${workflow.name}» lanzado en ${dialog.ref.ifBlank { "la rama por defecto" }}")
+                Notifier.info(project, "GitHub Actions", BidaideBundle.message("github.workflow.started", workflow.name, dialog.ref.ifBlank { BidaideBundle.message("github.workflow.defaultBranch") }))
                 // GitHub takes a moment to create the run.
                 Timer(RUN_APPEARS_MILLIS) { onStarted() }.apply { isRepeats = false }.start()
             }
@@ -135,8 +136,8 @@ private class DispatchDialog(
         }
 
     init {
-        title = "Lanzar ${workflow.name}"
-        setOKButtonText("Lanzar")
+        title = BidaideBundle.message("github.workflow.dialogTitle", workflow.name)
+        setOKButtonText(BidaideBundle.message("github.workflow.run"))
         init()
     }
 
@@ -148,8 +149,8 @@ private class DispatchDialog(
     }
 
     override fun createCenterPanel(): JComponent = panel {
-        row("Rama o tag:") { cell(refField).comment("Vacío = rama por defecto del repositorio.") }
-        if (inputs.isEmpty()) row { label("Este workflow no tiene parámetros.") }
+        row(BidaideBundle.message("github.workflow.ref")) { cell(refField).comment(BidaideBundle.message("github.workflow.ref.comment")) }
+        if (inputs.isEmpty()) row { label(BidaideBundle.message("github.workflow.noInputs")) }
         for ((input, editor) in editors) {
             row("${input.name}${if (input.required) " *" else ""}:") {
                 val cell = cell(editor)
@@ -161,5 +162,5 @@ private class DispatchDialog(
 
     override fun doValidate(): ValidationInfo? =
         editors.entries.firstOrNull { (input, editor) -> input.required && valueOf(editor).isEmpty() }
-            ?.let { (input, editor) -> ValidationInfo("«${input.name}» es obligatorio", editor) }
+            ?.let { (input, editor) -> ValidationInfo(BidaideBundle.message("github.workflow.required", input.name), editor) }
 }

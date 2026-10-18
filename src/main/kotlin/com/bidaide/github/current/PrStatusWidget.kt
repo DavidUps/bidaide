@@ -1,5 +1,7 @@
 package com.bidaide.github.current
 
+import com.bidaide.AndroidBridge
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhMergeRules
 import com.bidaide.gh.GhPullRequest
@@ -27,7 +29,7 @@ import javax.swing.Icon
 
 class PrStatusWidgetFactory : StatusBarWidgetFactory {
     override fun getId() = PrStatusWidget.ID
-    override fun getDisplayName() = "Bidaide: pull request de la rama"
+    override fun getDisplayName() = BidaideBundle.message("github.widget.name")
     override fun isAvailable(project: Project) = true
     override fun createWidget(project: Project): StatusBarWidget = PrStatusWidget(project)
 }
@@ -60,12 +62,15 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
     override fun getPopup(): JBPopup? {
         val pr = service.pullRequest ?: return null
         val group = DefaultActionGroup(
-            action("¿Cumple los requisitos de merge?") { showMergeStatus(pr) },
-            action("Revisar cambios") { PrReviewDiff.open(project, pr) },
-            action("Probar en dispositivo") { PullRequestActions.testOnDevice(project, pr) },
-            action("Ver en Bidaide") { ToolWindowManager.getInstance(project).getToolWindow("Bidaide")?.activate(null) },
-            action("Abrir en navegador") { BrowserUtil.browse(pr.url) },
-            action("Actualizar estado") { service.refresh() },
+            listOfNotNull(
+                action(BidaideBundle.message("github.widget.mergeStatus")) { showMergeStatus(pr) },
+                action(BidaideBundle.message("github.pr.button.review")) { PrReviewDiff.open(project, pr) },
+                // Android Studio only (see AndroidBridge).
+                if (AndroidBridge.isAvailable) action(BidaideBundle.message("github.pr.button.testOnDevice")) { PullRequestActions.testOnDevice(project, pr) } else null,
+                action(BidaideBundle.message("github.widget.showInBidaide")) { ToolWindowManager.getInstance(project).getToolWindow("Bidaide")?.activate(null) },
+                action(BidaideBundle.message("github.pr.button.browse")) { BrowserUtil.browse(pr.url) },
+                action(BidaideBundle.message("github.widget.refresh")) { service.refresh() },
+            ),
         )
         val context = DataManager.getInstance().getDataContext(WindowManager.getInstance().getStatusBar(project)?.component)
         return JBPopupFactory.getInstance().createActionGroupPopup(
@@ -75,7 +80,7 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
 
     private fun showMergeStatus(pr: GhPullRequest) {
         GhCli.async(
-            project, "Comprobando requisitos de PR #${pr.number}",
+            project, BidaideBundle.message("github.widget.checking", pr.number),
             work = { GhMergeRules.load(GhRepoContext.requireWorkDir(project), pr.number) },
         ) { status ->
             val html = "<html>${PullRequestHtml.mergeStatus(status)}</html>"
@@ -100,16 +105,16 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
                 append(" ").append(pr.state.lowercase())
                 return@buildString
             }
-            if (pr.isDraft) append(" borrador")
+            if (pr.isDraft) append(" ").append(BidaideBundle.message("github.pr.row.draft"))
             when {
                 pr.checksFailed -> append(" ✗ checks")
                 pr.checksPassed -> append(" ✓ checks")
                 pr.checks.isNotEmpty() -> append(" … checks")
             }
             when (pr.reviewDecision) {
-                "APPROVED" -> append(" · aprobada")
-                "CHANGES_REQUESTED" -> append(" · cambios pedidos")
-                "REVIEW_REQUIRED" -> append(" · falta review")
+                "APPROVED" -> append(" · ").append(BidaideBundle.message("github.widget.approved"))
+                "CHANGES_REQUESTED" -> append(" · ").append(BidaideBundle.message("github.widget.changesRequested"))
+                "REVIEW_REQUIRED" -> append(" · ").append(BidaideBundle.message("github.widget.reviewRequired"))
             }
             if (openThreads > 0) append(" · 💬 $openThreads")
         }

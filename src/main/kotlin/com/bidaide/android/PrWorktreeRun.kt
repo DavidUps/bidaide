@@ -1,10 +1,11 @@
-package com.bidaide.github.pr
+package com.bidaide.android
 
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.model.AndroidModel
 import com.android.tools.idea.projectsystem.getAndroidFacets
 import com.android.tools.idea.projectsystem.gradle.getGradleProjectPath
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.adb.AdbShell
 import com.bidaide.adb.AdbTargetResolver
@@ -15,6 +16,8 @@ import com.bidaide.gh.GhException
 import com.bidaide.gh.GhPullRequest
 import com.bidaide.gh.GhRepoContext
 import com.bidaide.github.actions.GitHubProjectAction
+import com.bidaide.github.pr.PrAppModule
+import com.bidaide.github.pr.PrWorktrees
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.ColoredProcessHandler
@@ -42,7 +45,7 @@ import org.jetbrains.plugins.gradle.settings.GradleSettings
 import java.io.File
 
 /**
- * "Probar en dispositivo" without touching the user's checkout: the pull request's head is fetched into a detached
+ * "Test on Device" without touching the user's checkout: the pull request's head is fetched into a detached
  * worktree under the IDE system directory, built there with the project's Gradle wrapper and JDK, and started on
  * the device chosen through [AdbTargetResolver].
  */
@@ -54,13 +57,12 @@ object PrWorktreeRun {
     /** Must be called on the EDT. */
     fun start(project: Project, pr: GhPullRequest) {
         val repository = GhRepoContext.repository(project)
-            ?: return GhCli.report(project, "Probar PR #${pr.number}", GhException("Este proyecto no tiene ningún repositorio git."))
+            ?: return GhCli.report(project, BidaideBundle.message("github.pr.test.task", pr.number), GhException(BidaideBundle.message("gh.repo.noGit")))
         val apps = appModules(project)
         if (apps.isEmpty()) {
             Notifier.warn(
                 project, "PR #${pr.number}",
-                "No se pudo leer el módulo de la app (¿falta sincronizar Gradle?). Se usa ${PrWorktrees.installTask(PrWorktrees.FALLBACK_MODULE)} " +
-                    "y la app no se iniciará sola al terminar.",
+                BidaideBundle.message("github.pr.worktree.noModule", PrWorktrees.installTask(PrWorktrees.FALLBACK_MODULE)),
             )
         }
         // The app is asked for (when there are several) the same way as for any ADB operation, and names the module to build.
@@ -69,7 +71,7 @@ object PrWorktreeRun {
             // With one device Gradle must install only there; "all devices" is what the install task does anyway.
             val serial = devices.singleOrNull()?.serialNumber
             GhCli.async(
-                project, "Preparando worktree de PR #${pr.number}",
+                project, BidaideBundle.message("github.pr.worktree.preparing", pr.number),
                 work = { prepare(project, repository, pr.number, module, serial) },
             ) { prepared -> showBuild(project, pr, prepared, devices, module.applicationId) }
         }
@@ -94,7 +96,7 @@ object PrWorktreeRun {
         val linkedPath = GradleSettings.getInstance(project).linkedProjectsSettings.firstOrNull()?.externalProjectPath ?: project.basePath
         val userGradleRoot = linkedPath?.let(::File) ?: repoRoot
         val inRepo = PrWorktrees.gradleRootInRepo(repoRoot, userGradleRoot)
-            ?: throw GhException("El proyecto Gradle ($userGradleRoot) está fuera del repositorio git; no se puede compilar en un worktree.")
+            ?: throw GhException(BidaideBundle.message("github.pr.worktree.outsideRepo", userGradleRoot))
         val gradleRoot = if (inRepo.isEmpty()) dir else File(dir, inRepo)
 
         // sdk.dir and friends are never committed; without them the build cannot find the Android SDK.
@@ -103,7 +105,7 @@ object PrWorktreeRun {
         if (localProperties.isFile && !target.exists()) localProperties.copyTo(target)
 
         val wrapper = File(gradleRoot, PrWorktrees.wrapperName(SystemInfo.isWindows))
-        if (!wrapper.isFile) throw GhException("La PR no tiene ${wrapper.name} en ${gradleRoot.path}; hace falta el wrapper de Gradle para compilar.")
+        if (!wrapper.isFile) throw GhException(BidaideBundle.message("github.pr.worktree.noWrapper", wrapper.name, gradleRoot.path))
         // The JDK the IDE gives Gradle for this project (Settings → Build Tools → Gradle), so the build behaves the same.
         val jdk = linkedPath?.let {
             ApplicationManager.getApplication().runReadAction(Computable { GradleInstallationManager.getInstance().getGradleJvmPath(project, it) })
@@ -114,9 +116,9 @@ object PrWorktreeRun {
         jdk?.let { commandLine.withEnvironment("JAVA_HOME", it) }
         serial?.let { commandLine.withEnvironment("ANDROID_SERIAL", it) }
         val header = buildString {
-            appendLine("PR #$number en ${commit.take(10)} · worktree ${dir.path}")
-            appendLine("JDK: ${jdk ?: "el de JAVA_HOME"}${serial?.let { " · dispositivo $it" }.orEmpty()}")
-            if (!localProperties.isFile) appendLine("Tu proyecto no tiene local.properties: no se ha copiado nada.")
+            appendLine(BidaideBundle.message("github.pr.worktree.header", number, commit.take(10), dir.path))
+            appendLine("JDK: ${jdk ?: BidaideBundle.message("github.pr.worktree.javaHome")}${serial?.let { " · " + BidaideBundle.message("github.pr.worktree.device", it) }.orEmpty()}")
+            if (!localProperties.isFile) appendLine(BidaideBundle.message("github.pr.worktree.noLocalProperties"))
             appendLine("> ${wrapper.name} $task")
         }
         return Prepared(dir, ColoredProcessHandler(commandLine), header, localProperties.isFile)
@@ -130,7 +132,7 @@ object PrWorktreeRun {
         val source = remote ?: PrWorktrees.repoUrl(nameWithOwner)
         git(project, repoRoot, GitCommand.FETCH, PrWorktrees.fetchArgs(source, number), urls = remotes[remote] ?: listOf(source))
         return git(project, repoRoot, GitCommand.REV_PARSE, listOf("FETCH_HEAD")).firstOrNull { it.isNotBlank() }?.trim()
-            ?: throw GhException("git no devolvió el commit de la PR #$number")
+            ?: throw GhException(BidaideBundle.message("github.pr.worktree.noCommit", number))
     }
 
     /** Reuses the PR's worktree when git still knows it; otherwise (re)creates it detached at [commit]. */
@@ -160,7 +162,7 @@ object PrWorktreeRun {
         urls?.let(handler::setUrls)
         handler.addParameters(args)
         val result = Git.getInstance().runCommand(handler)
-        if (!result.success()) throw GhException("git ${command.name()} falló: ${result.errorOutputAsJoinedString}")
+        if (!result.success()) throw GhException(BidaideBundle.message("github.pr.worktree.gitFailed", command.name(), result.errorOutputAsJoinedString))
         return result.output
     }
 
@@ -170,7 +172,7 @@ object PrWorktreeRun {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Bidaide")
         if (toolWindow == null) {
             handler.destroyProcess()
-            Notifier.warn(project, "PR #${pr.number}", "No se encuentra la ventana Bidaide.")
+            Notifier.warn(project, "PR #${pr.number}", BidaideBundle.message("adb.logcat.noToolWindow"))
             return
         }
         val console = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
@@ -191,13 +193,13 @@ object PrWorktreeRun {
                     when {
                         project.isDisposed || closed -> Unit
                         event.exitCode != 0 -> Notifier.error(
-                            project, "PR #${pr.number}: la build falló (código ${event.exitCode})",
+                            project, BidaideBundle.message("github.pr.worktree.buildFailed", pr.number, event.exitCode),
                             PrWorktrees.failureHint(prepared.copiedLocalProperties) + "<br>Worktree: ${prepared.dir.path}",
                         )
-                        packageName == null -> Notifier.info(project, "PR #${pr.number}", "Instalada. Ábrela a mano en el dispositivo.")
+                        packageName == null -> Notifier.info(project, "PR #${pr.number}", BidaideBundle.message("github.pr.worktree.installed"))
                         else -> AdbTasks.run(project, "PR #${pr.number}", devices, packageName) { context ->
                             AdbShell.start(context.device, packageName)
-                            "PR #${pr.number} instalada e iniciada"
+                            BidaideBundle.message("github.pr.worktree.started", pr.number)
                         }
                     }
                 }
@@ -212,29 +214,29 @@ object PrWorktreeRun {
     /** Deletes this repository's PR worktrees after asking; the user's checkout and other worktrees are never touched. */
     fun deleteWorktrees(project: Project) {
         val repository = GhRepoContext.repository(project)
-            ?: return Notifier.warn(project, "Worktrees de PRs", "Este proyecto no tiene ningún repositorio git.")
+            ?: return Notifier.warn(project, BidaideBundle.message("github.pr.worktrees.title"), BidaideBundle.message("gh.repo.noGit"))
         val repoRoot = VfsUtilCore.virtualToIoFile(repository.root)
         val systemDir = File(PathManager.getSystemPath())
         val root = PrWorktrees.root(systemDir)
         val repoDir = PrWorktrees.repoDir(systemDir, repoRoot.path)
         GhCli.async(
-            project, "Buscando worktrees de PRs",
+            project, BidaideBundle.message("github.pr.worktrees.searching"),
             work = { PrWorktrees.ownWorktrees(repoDir, listWorktrees(project, repoRoot)) },
         ) { worktrees ->
             val leftovers = repoDir.listFiles().orEmpty().count { dir -> worktrees.none { it.canonicalFile == dir.canonicalFile } }
             if (worktrees.isEmpty() && leftovers == 0) {
-                Notifier.info(project, "Worktrees de PRs", "No hay worktrees de PRs de este repositorio.")
+                Notifier.info(project, BidaideBundle.message("github.pr.worktrees.title"), BidaideBundle.message("github.pr.worktrees.none"))
                 return@async
             }
             val answer = Messages.showOkCancelDialog(
                 project,
-                "Se borrarán ${worktrees.size + leftovers} carpeta(s) en ${repoDir.path}, con lo compilado en ellas. " +
-                    "Tu copia del repositorio y tus cambios no se tocan.",
-                "Borrar worktrees de PRs", "Borrar", "Cancelar", Messages.getWarningIcon(),
+                BidaideBundle.message("github.pr.worktrees.confirm", worktrees.size + leftovers, repoDir.path),
+                BidaideBundle.message("github.pr.worktrees.deleteTitle"), BidaideBundle.message("github.pr.worktrees.delete"),
+                BidaideBundle.message("common.cancel"), Messages.getWarningIcon(),
             )
             if (answer != Messages.OK) return@async
             GhCli.async(
-                project, "Borrando worktrees de PRs",
+                project, BidaideBundle.message("github.pr.worktrees.deleting"),
                 work = {
                     worktrees.forEach { git(project, repoRoot, GitCommand.WORKTREE, PrWorktrees.removeArgs(it)) }
                     git(project, repoRoot, GitCommand.WORKTREE, listOf("prune"))
@@ -242,12 +244,12 @@ object PrWorktreeRun {
                     repoDir.listFiles().orEmpty().filter { PrWorktrees.isInside(root, it) }.forEach(FileUtil::delete)
                     if (PrWorktrees.isInside(root, repoDir) && repoDir.listFiles().isNullOrEmpty()) FileUtil.delete(repoDir)
                 },
-            ) { Notifier.info(project, "Worktrees de PRs", "Worktrees borrados.") }
+            ) { Notifier.info(project, BidaideBundle.message("github.pr.worktrees.title"), BidaideBundle.message("github.pr.worktrees.deleted")) }
         }
     }
 }
 
-/** Tools → Bidaide → GitHub → "Borrar worktrees de PRs...". */
+/** Tools → Bidaide → GitHub → "Delete Pull Request Worktrees...". Android Studio only, like the worktrees it deletes. */
 class DeletePrWorktreesAction : GitHubProjectAction() {
     override fun actionPerformed(e: AnActionEvent) {
         PrWorktreeRun.deleteWorktrees(e.project ?: return)

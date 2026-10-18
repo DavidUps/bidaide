@@ -1,7 +1,8 @@
 package com.bidaide.settings
 
-import com.bidaide.adb.AdbFavoritesDialog
-import com.bidaide.adb.AdbFavoritesStore
+import com.bidaide.AndroidBridge
+import com.bidaide.BidaideActionTexts
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhExecutable
 import com.intellij.openapi.application.ApplicationManager
@@ -11,29 +12,40 @@ import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.bindIntText
+import com.intellij.ui.dsl.builder.bindItem
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.rows
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.builder.toNullableProperty
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import javax.swing.JLabel
 
-class BidaideConfigurable : BoundConfigurable("Bidaide") {
+class BidaideConfigurable : BoundConfigurable(BidaideBundle.message("settings.displayName")) {
 
     override fun createPanel(): DialogPanel {
         val settings = BidaideSettings.getInstance()
         val status = JLabel(" ")
-        val favorites = JLabel(describeFavorites())
+        val android = AndroidBridge.instance
+        val favorites = JLabel(android?.let(::describeFavorites).orEmpty())
         return panel {
+            group(BidaideBundle.message("settings.language.group")) {
+                row(BidaideBundle.message("settings.language.label")) {
+                    comboBox(BidaideLanguage.entries, textListCellRenderer { it?.displayName })
+                        .bindItem(settings::language.toNullableProperty())
+                        .comment(BidaideBundle.message("settings.language.comment"))
+                }
+            }
             group("GitHub CLI") {
-                row("Ruta de gh:") {
-                    textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFileNoJarsDescriptor().withTitle("Ejecutable gh"))
+                row(BidaideBundle.message("settings.gh.path")) {
+                    textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFileNoJarsDescriptor().withTitle(BidaideBundle.message("settings.gh.path.title")))
                         .bindText(settings::ghPath)
                         .align(AlignX.FILL)
-                        .comment("Vacío = detectar automáticamente (PATH, /opt/homebrew/bin, /usr/local/bin).")
+                        .comment(BidaideBundle.message("settings.gh.path.comment"))
                 }
                 row {
-                    button("Comprobar") {
-                        status.text = "Comprobando..."
+                    button(BidaideBundle.message("settings.gh.check")) {
+                        status.text = BidaideBundle.message("settings.gh.checking")
                         val modality = ModalityState.stateForComponent(status)
                         ApplicationManager.getApplication().executeOnPooledThread {
                             val text = describeGhStatus()
@@ -43,58 +55,70 @@ class BidaideConfigurable : BoundConfigurable("Bidaide") {
                     cell(status)
                 }
             }
-            group("Avisos de GitHub") {
-                row { checkBox("Avisar de peticiones de review y de cambios en mis pull requests").bindSelected(settings::notificationsEnabled) }
-                row("Consultar cada (minutos):") { intTextField(1..120).bindIntText(settings::pollMinutes) }
+            group(BidaideBundle.message("settings.notifications.group")) {
+                row { checkBox(BidaideBundle.message("settings.notifications.enabled")).bindSelected(settings::notificationsEnabled) }
+                row(BidaideBundle.message("settings.notifications.poll")) { intTextField(1..120).bindIntText(settings::pollMinutes) }
             }
-            group("Respuestas guardadas") {
+            group(BidaideBundle.message("settings.savedReplies.group")) {
                 row {
                     textArea().bindText(settings::savedReplies).rows(4).align(AlignX.FILL)
-                        .comment("Una por línea: <code>Nombre = texto</code>. <code>\\n</code> es un salto de línea. Aparecen al comentar una PR.")
+                        .comment(BidaideBundle.message("settings.savedReplies.comment"))
                 }
             }
-            group("ADB") {
-                row("Favoritos:") {
-                    button("Gestionar favoritos...") {
-                        if (AdbFavoritesDialog.edit(null)) favorites.text = describeFavorites()
-                    }.comment("Aparecen primero en el popup de ADB. Se guardan al aceptar el diálogo.")
-                    cell(favorites)
-                }
-                row("Carpeta de capturas:") {
-                    textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle("Carpeta de capturas"))
+            // Without ADB the folder only holds CI artifacts and release assets.
+            if (android == null) group(BidaideBundle.message("settings.downloads.group")) {
+                row(BidaideBundle.message("settings.downloads.dir")) {
+                    textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle(BidaideBundle.message("settings.downloads.dir.title")))
                         .bindText(settings::captureDir)
                         .align(AlignX.FILL)
-                        .comment("Capturas, grabaciones y datos extraídos. Vacío = Escritorio.")
+                        .comment(BidaideBundle.message("settings.downloads.dir.comment"))
                 }
-                row("Comandos propios:") {
+            }
+            // Android Studio only (see AndroidBridge).
+            if (android != null) group("ADB") {
+                row(BidaideBundle.message("settings.adb.favorites")) {
+                    button(BidaideBundle.message("settings.adb.favorites.manage")) {
+                        if (android.editAdbFavorites()) favorites.text = describeFavorites(android)
+                    }.comment(BidaideBundle.message("settings.adb.favorites.comment"))
+                    cell(favorites)
+                }
+                row(BidaideBundle.message("settings.adb.captureDir")) {
+                    textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle(BidaideBundle.message("settings.adb.captureDir.title")))
+                        .bindText(settings::captureDir)
+                        .align(AlignX.FILL)
+                        .comment(BidaideBundle.message("settings.adb.captureDir.comment"))
+                }
+                row(BidaideBundle.message("settings.adb.customCommands")) {
                     textArea().bindText(settings::customAdbCommands).rows(6).align(AlignX.FILL)
-                        .comment("Uno por línea: <code>Nombre = comando shell</code>. <code>{package}</code> es el id de la app. Aparecen en el popup de ADB.")
+                        .comment(BidaideBundle.message("settings.adb.customCommands.comment"))
                 }
-                row("Perfiles de dispositivo:") {
+                row(BidaideBundle.message("settings.adb.profiles")) {
                     textArea().bindText(settings::deviceProfiles).rows(4).align(AlignX.FILL)
-                        .comment(
-                            "Uno por línea: <code>Nombre = clave=valor, clave=valor</code>. Claves: dark, animations, touches, " +
-                                "dontkeep, wifi, data (on/off), font (p. ej. 1.3), rotation (portrait/landscape/auto), " +
-                                "locale (p. ej. ar, o system). Ejemplo: <code>Accesibilidad = dark=on, font=1.3, animations=off</code>"
-                        )
+                        .comment(BidaideBundle.message("settings.adb.profiles.comment"))
                 }
             }
         }
     }
 
-    private fun describeFavorites(): String = when (val count = AdbFavoritesStore.ids().size) {
-        0 -> "Ninguno"
-        1 -> "1 operación"
-        else -> "$count operaciones"
+    override fun apply() {
+        val before = BidaideSettings.getInstance().language
+        super.apply()
+        if (BidaideSettings.getInstance().language != before) BidaideActionTexts.apply()
+    }
+
+    private fun describeFavorites(android: AndroidBridge): String = when (val count = android.adbFavoritesCount()) {
+        0 -> BidaideBundle.message("settings.adb.favorites.none")
+        1 -> BidaideBundle.message("settings.adb.favorites.one")
+        else -> BidaideBundle.message("settings.adb.favorites.many", count)
     }
 
     private fun describeGhStatus(): String {
-        val path = GhExecutable.find() ?: return "gh no encontrado. Instálalo con: brew install gh"
+        val path = GhExecutable.find() ?: return BidaideBundle.message("settings.gh.notFound")
         return try {
             val user = GhCli.run(null, listOf("api", "user", "--jq", ".login")).trim()
-            "OK — $path, sesión de $user"
+            BidaideBundle.message("settings.gh.ok", path, user)
         } catch (e: Exception) {
-            "$path encontrado, pero sin sesión. Ejecuta: gh auth login"
+            BidaideBundle.message("settings.gh.noSession", path)
         }
     }
 }

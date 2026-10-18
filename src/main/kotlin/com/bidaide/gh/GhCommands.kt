@@ -1,5 +1,8 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
+import java.util.function.Supplier
+
 /** Builds `gh` argument lists. Pure, so the exact commands can be unit tested. */
 object GhCommands {
     const val PR_LIST_FIELDS = "number,title,state,isDraft,author,headRefName,baseRefName,createdAt,updatedAt,url,reviewDecision," +
@@ -11,16 +14,23 @@ object GhCommands {
     const val ISSUE_VIEW_FIELDS = "$ISSUE_LIST_FIELDS,body,comments"
     private const val LIST_LIMIT = "100"
 
-    enum class StateFilter(val cli: String, val label: String) {
-        OPEN("open", "Abiertos"), CLOSED("closed", "Cerrados"), MERGED("merged", "Fusionados"), ALL("all", "Todos")
+    enum class StateFilter(val cli: String, private val text: Supplier<String>) {
+        OPEN("open", BidaideBundle.lazyMessage("gh.state.open")), CLOSED("closed", BidaideBundle.lazyMessage("gh.state.closed")),
+        MERGED("merged", BidaideBundle.lazyMessage("gh.state.merged")), ALL("all", BidaideBundle.lazyMessage("gh.state.all"));
+
+        val label: String get() = text.get()
     }
 
     enum class MergeMethod(val flag: String, val label: String) {
         MERGE("--merge", "Merge commit"), SQUASH("--squash", "Squash and merge"), REBASE("--rebase", "Rebase and merge")
     }
 
-    enum class ReviewKind(val flag: String, val label: String) {
-        APPROVE("--approve", "Aprobar"), REQUEST_CHANGES("--request-changes", "Pedir cambios"), COMMENT("--comment", "Comentar")
+    enum class ReviewKind(val flag: String, private val text: Supplier<String>) {
+        APPROVE("--approve", BidaideBundle.lazyMessage("gh.review.approve")),
+        REQUEST_CHANGES("--request-changes", BidaideBundle.lazyMessage("gh.review.requestChanges")),
+        COMMENT("--comment", BidaideBundle.lazyMessage("gh.review.comment"));
+
+        val label: String get() = text.get()
     }
 
     fun prList(state: StateFilter, search: String): List<String> =
@@ -241,11 +251,17 @@ object GhCommands {
     }
 
     /** Quick filters, expressed as GitHub search qualifiers so they combine with free-text search. */
-    val PR_SCOPES = listOf(
-        "Todas" to "", "Mías" to "author:@me", "Pendientes de mi review" to "review-requested:@me",
-        "Asignadas a mí" to "assignee:@me", "Me mencionan" to "mentions:@me",
-    )
-    val ISSUE_SCOPES = listOf("Todas" to "", "Mías" to "author:@me", "Asignadas a mí" to "assignee:@me", "Me mencionan" to "mentions:@me")
+    val PR_SCOPES: List<Pair<String, String>>
+        get() = listOf(
+            BidaideBundle.message("gh.scope.all") to "", BidaideBundle.message("gh.scope.mine") to "author:@me",
+            BidaideBundle.message("gh.scope.reviewRequested") to "review-requested:@me",
+            BidaideBundle.message("gh.scope.assigned") to "assignee:@me", BidaideBundle.message("gh.scope.mentioned") to "mentions:@me",
+        )
+    val ISSUE_SCOPES: List<Pair<String, String>>
+        get() = listOf(
+            BidaideBundle.message("gh.scope.all") to "", BidaideBundle.message("gh.scope.mine") to "author:@me",
+            BidaideBundle.message("gh.scope.assigned") to "assignee:@me", BidaideBundle.message("gh.scope.mentioned") to "mentions:@me",
+        )
 
     fun combineSearch(scope: String, search: String): String = listOf(scope.trim(), search.trim()).filter { it.isNotEmpty() }.joinToString(" ")
 

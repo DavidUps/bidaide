@@ -1,5 +1,6 @@
 package com.bidaide.github.review
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -84,7 +85,7 @@ class PrReviewWindow(private val session: PrReviewSession) {
     private val threadsList = JBList(threadsModel)
 
     private val submitButton = JButton()
-    private val discardButton = JButton("Descartar review")
+    private val discardButton = JButton(BidaideBundle.message("github.review.discard"))
     private val summary = JBLabel()
 
     private val frame = FrameWrapper(project, "Bidaide.PrReview", false, "PR #${session.number} — ${session.pr.title}")
@@ -94,8 +95,8 @@ class PrReviewWindow(private val session: PrReviewSession) {
         configureThreads()
 
         val left = OnePixelSplitter(true, "Bidaide.PrReview.left", 0.6f).apply {
-            firstComponent = titled("Archivos", JBScrollPane(tree))
-            secondComponent = titled("Conversaciones", JBScrollPane(threadsList))
+            firstComponent = titled(BidaideBundle.message("github.review.files"), JBScrollPane(tree))
+            secondComponent = titled(BidaideBundle.message("gh.merge.conversations"), JBScrollPane(threadsList))
         }
         main.firstComponent = left
         main.secondComponent = processor.component
@@ -121,18 +122,18 @@ class PrReviewWindow(private val session: PrReviewSession) {
     private fun toolbar(): JComponent {
         submitButton.addActionListener { submitReview() }
         discardButton.addActionListener { discardReview() }
-        val refresh = JButton("Actualizar").apply { addActionListener { session.refresh() } }
-        val reload = JButton("Recargar PR").apply {
-            toolTipText = "Vuelve a leer la PR por si tiene commits nuevos"
+        val refresh = JButton(BidaideBundle.message("github.list.refresh")).apply { addActionListener { session.refresh() } }
+        val reload = JButton(BidaideBundle.message("github.review.reload")).apply {
+            toolTipText = BidaideBundle.message("github.review.reload.tooltip")
             addActionListener {
                 frame.close()
                 PrReviewDiff.reopen(project, session.number)
             }
         }
         scopeCombo.renderer = SimpleListCellRenderer.create("") { commit ->
-            if (commit === allChanges) "Todos los cambios" else "${commit.oid.take(7)}  ${commit.messageHeadline.take(70)}"
+            if (commit === allChanges) BidaideBundle.message("github.review.allChanges") else "${commit.oid.take(7)}  ${commit.messageHeadline.take(70)}"
         }
-        scopeCombo.toolTipText = "Revisar la PR entera o commit a commit. Los comentarios en línea solo se muestran en «Todos los cambios»."
+        scopeCombo.toolTipText = BidaideBundle.message("github.review.scope.tooltip")
         scopeCombo.isVisible = scopeCombo.itemCount > 2
         scopeCombo.addActionListener { chooseScope(scopeCombo.item?.takeIf { it !== allChanges }) }
         return JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(6), JBUI.scale(4))).apply {
@@ -165,7 +166,7 @@ class PrReviewWindow(private val session: PrReviewSession) {
             return
         }
         GhCli.async(
-            project, "Cargando commit ${commit.oid.take(7)}",
+            project, BidaideBundle.message("github.review.loadingCommit", commit.oid.take(7)),
             onFailure = { scopeCombo.selectedItem = scope.commit ?: allChanges },
             work = { GhJson.commitDetail(GhCli.run(session.workDir, GhCommands.commit(commit.oid))) },
         ) { detail ->
@@ -204,11 +205,11 @@ class PrReviewWindow(private val session: PrReviewSession) {
 
     private fun refresh() {
         val pending = session.pendingCount
-        submitButton.text = if (session.hasPendingReview) "Enviar review ($pending pendientes)..." else "Enviar review..."
+        submitButton.text = if (session.hasPendingReview) BidaideBundle.message("github.review.submitPending", pending) else BidaideBundle.message("github.review.submit")
         discardButton.isVisible = session.hasPendingReview
         val open = session.threads.count { !it.isResolved }
-        val reviewed = "${session.viewedCount}/${session.files.size} archivos vistos · $open hilos abiertos de ${session.threads.size}"
-        summary.text = scope.commit?.let { "Commit ${it.oid.take(7)}: ${scope.files.size} archivos, solo lectura · $reviewed" } ?: reviewed
+        val reviewed = BidaideBundle.message("github.review.summary", session.viewedCount, session.files.size, open, session.threads.size)
+        summary.text = scope.commit?.let { BidaideBundle.message("github.review.commitSummary", it.oid.take(7), scope.files.size, reviewed) } ?: reviewed
         threadsModel.replaceAll(session.threads.sortedWith(compareBy({ it.isResolved }, { it.path }, { it.line ?: it.originalLine ?: 0 })))
         tree.repaint()
     }
@@ -287,7 +288,7 @@ class PrReviewWindow(private val session: PrReviewSession) {
     // --- Conversations ---
 
     private fun configureThreads() {
-        threadsList.emptyText.text = "Sin comentarios en el código"
+        threadsList.emptyText.text = BidaideBundle.message("github.review.noThreads")
         threadsList.cellRenderer = object : ColoredListCellRenderer<GhReviewThread>() {
             override fun customizeCellRenderer(list: JList<out GhReviewThread>, value: GhReviewThread?, index: Int, selected: Boolean, hasFocus: Boolean) {
                 val thread = value ?: return
@@ -340,18 +341,19 @@ class PrReviewWindow(private val session: PrReviewSession) {
             }
             GhCommands.prReview(session.number, kind, dialog.body)
         }
-        session.mutate("Enviando review de PR #${session.number}", args) { ok ->
-            if (ok) Notifier.info(project, "GitHub", "Review enviada a PR #${session.number} (${event.label.lowercase()})")
+        session.mutate(BidaideBundle.message("github.pr.review.task", session.number), args) { ok ->
+            if (ok) Notifier.info(project, "GitHub", BidaideBundle.message("github.review.sent", session.number, event.label.lowercase()))
         }
     }
 
     private fun discardReview() {
         val reviewId = session.state.pendingReviewId ?: return
         val answer = Messages.showYesNoDialog(
-            project, "Se borrarán los ${session.pendingCount} comentarios pendientes que aún no has enviado.",
-            "Descartar review", "Descartar", "Cancelar", Messages.getWarningIcon(),
+            project, BidaideBundle.message("github.review.discard.confirm", session.pendingCount),
+            BidaideBundle.message("github.review.discard"), BidaideBundle.message("github.review.discard.ok"),
+            BidaideBundle.message("common.cancel"), Messages.getWarningIcon(),
         )
-        if (answer == Messages.YES) session.mutate("Descartando review", GhReviewCommands.discardPending(reviewId))
+        if (answer == Messages.YES) session.mutate(BidaideBundle.message("github.review.discarding"), GhReviewCommands.discardPending(reviewId))
     }
 }
 
@@ -368,23 +370,23 @@ private class SubmitReviewDialog(private val session: PrReviewSession) : DialogW
     val body: String get() = area.text.trim()
 
     init {
-        title = "Enviar review — PR #${session.number}"
-        setOKButtonText("Enviar")
+        title = BidaideBundle.message("github.review.submitTitle", session.number)
+        setOKButtonText(BidaideBundle.message("github.review.send"))
         init()
     }
 
     override fun createCenterPanel(): JComponent = panel {
-        row("Veredicto:") { cell(eventCombo) }
-        if (session.hasPendingReview) row { label("Se publicarán ${session.pendingCount} comentarios pendientes.") }
+        row(BidaideBundle.message("github.review.verdict")) { cell(eventCombo) }
+        if (session.hasPendingReview) row { label(BidaideBundle.message("github.review.willPublish", session.pendingCount)) }
         row { cell(JBScrollPane(area)).align(Align.FILL) }.resizableRow()
     }
 
     override fun getPreferredFocusedComponent() = area
 
     override fun doValidate(): ValidationInfo? = when {
-        event == ReviewEvent.REQUEST_CHANGES && body.isEmpty() -> ValidationInfo("Pedir cambios necesita un comentario", area)
+        event == ReviewEvent.REQUEST_CHANGES && body.isEmpty() -> ValidationInfo(BidaideBundle.message("github.review.changesNeedComment"), area)
         // A bare "comment" review only makes sense when it publishes pending inline comments.
-        event == ReviewEvent.COMMENT && body.isEmpty() && session.pendingCount == 0 -> ValidationInfo("Escribe un comentario", area)
+        event == ReviewEvent.COMMENT && body.isEmpty() && session.pendingCount == 0 -> ValidationInfo(BidaideBundle.message("github.review.writeComment"), area)
         else -> null
     }
 }
@@ -409,7 +411,7 @@ object ThreadPopup {
         }
         rebuild()
         val created = JBPopupFactory.getInstance().createComponentPopupBuilder(JBScrollPane(holder), holder)
-            .setTitle("Conversación")
+            .setTitle(BidaideBundle.message("github.review.conversation"))
             .setRequestFocus(true)
             .setFocusable(true)
             .setMovable(true)

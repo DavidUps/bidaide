@@ -3,9 +3,11 @@
 </p>
 
 <p align="center">
-  <img alt="Versión 0.1.0" src="https://img.shields.io/badge/versi%C3%B3n-0.1.0-3ddc84?style=flat-square">
+  <img alt="Versión 0.2" src="https://img.shields.io/badge/versi%C3%B3n-0.2-3ddc84?style=flat-square">
   <img alt="Estado: beta" src="https://img.shields.io/badge/estado-beta-f0883e?style=flat-square">
   <img alt="Android Studio 2026.1 o posterior" src="https://img.shields.io/badge/Android%20Studio-2026.1%2B-58a6ff?style=flat-square&logo=androidstudio&logoColor=white">
+  <img alt="IntelliJ IDEA 2026.1 o posterior, solo GitHub" src="https://img.shields.io/badge/IntelliJ%20IDEA-2026.1%2B%20(GitHub)-fe2857?style=flat-square&logo=intellijidea&logoColor=white">
+  <img alt="Idiomas: inglés, español, francés e italiano" src="https://img.shields.io/badge/idiomas-EN%20%C2%B7%20ES%20%C2%B7%20FR%20%C2%B7%20IT-8957e5?style=flat-square">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.3-a371f7?style=flat-square&logo=kotlin&logoColor=white">
   <a href="LICENSE"><img alt="Licencia Apache 2.0" src="https://img.shields.io/badge/licencia-Apache%202.0-4c8bf5?style=flat-square"></a>
   <img alt="Funciona con GitHub CLI" src="https://img.shields.io/badge/GitHub%20CLI-gh-24292f?style=flat-square&logo=github&logoColor=white">
@@ -34,8 +36,13 @@
 
 Sin tokens que configurar: el plugin usa la sesión de `gh`. Sin navegador: todo ocurre en el IDE.
 
+En **IntelliJ IDEA** se instala el mismo plugin y funciona la parte de GitHub. Lo que necesita un dispositivo
+(ADB, instalar APK, probar una PR en el dispositivo) solo aparece en Android Studio.
+
+Habla **inglés, español, francés e italiano**: sigue el idioma del IDE o el que elijas en los ajustes.
+
 > [!NOTE]
-> Versión 0.1.0, en beta. Funciona, pero es joven: si algo falla, abre una issue.
+> Versión 0.2, en beta. Funciona, pero es joven: si algo falla, abre una issue.
 
 ## 🎬 Míralo en acción
 
@@ -67,7 +74,8 @@ Sin tokens que configurar: el plugin usa la sesión de `gh`. Sin navegador: todo
 
 ### Requisitos
 
-- **Android Studio 2026.1** (build 261) o posterior.
+- **Android Studio 2026.1** (build 261) o posterior. También **IntelliJ IDEA 2026.1** o posterior, solo con la
+  parte de GitHub.
 - **GitHub CLI** con sesión iniciada:
 
   ```sh
@@ -80,7 +88,7 @@ Sin tokens que configurar: el plugin usa la sesión de `gh`. Sin navegador: todo
 ### Instalar el plugin
 
 1. Descarga `bidaide-<versión>.zip` de la página de [**Releases**](../../releases/latest).
-2. En Android Studio: **Settings → Plugins → ⚙ → Install Plugin from Disk...**
+2. En Android Studio o IntelliJ IDEA: **Settings → Plugins → ⚙ → Install Plugin from Disk...**
 3. Elige el zip y reinicia el IDE.
 
 Al abrir un proyecto con un remoto de GitHub aparece la ventana **Bidaide** en la parte inferior.
@@ -106,13 +114,13 @@ Todo vive en la ventana **Bidaide**, una pestaña por tema. Cada pestaña se car
 - **Detalle** con la actividad completa en orden: comentarios, reviews, commits, labels, cierres.
 - **Acciones**: checkout, aprobar, pedir cambios, comentar, marcar lista, actualizar rama (merge o rebase),
   merge con auto-merge opcional, editar labels / asignados / reviewers / milestone, cerrar y reabrir.
-- **Probar en dispositivo**: elige cómo. *En un worktree aparte* (por defecto) baja la PR a una carpeta propia del
+- **Probar en dispositivo** (solo Android Studio): elige cómo. *En un worktree aparte* (por defecto) baja la PR a una carpeta propia del
   IDE sin tocar tu rama ni tus cambios, la compila con Gradle (tu módulo de app y variante, tu JDK de Gradle y una
   copia de tu `local.properties`), la instala y la abre en el dispositivo; la build sale en una pestaña de la
   ventana Bidaide. Los archivos que no están en git (`google-services.json`, claves...) no se copian. *Checkout en tu
   copia* hace checkout de la PR y lanza tu run configuration, y avisa si tienes cambios sin commit. Los worktrees se
   borran con *Tools → Bidaide → GitHub → Borrar worktrees de PRs*.
-- **APK del CI**: descarga el artifact del último run de la rama y ofrece instalarlo.
+- **APK del CI** (solo Android Studio): descarga el artifact del último run de la rama y ofrece instalarlo.
 
 ### Revisión de código
 
@@ -155,7 +163,7 @@ Runs de tu rama o de todas, con refresco automático mientras algo corre.
 
 - Relanzar todo o solo lo fallido, cancelar.
 - **Logs** en su pestaña, con las rutas de archivo enlazadas a tu código local.
-- **Artifacts**: descargar e instalar el APK.
+- **Artifacts**: descargar y, en Android Studio, instalar el APK.
 - **Lanzar workflow** con `workflow_dispatch` y sus parámetros.
 
 ### Y además
@@ -175,7 +183,7 @@ el proyecto.
 
 ## 🤖 ADB
 
-Pulsa el atajo y escribe: el popup filtra mientras tecleas. También en **Tools → Bidaide → ADB**.
+Solo en Android Studio. Pulsa el atajo y escribe: el popup filtra mientras tecleas. También en **Tools → Bidaide → ADB**.
 
 | Grupo | Operaciones |
 |---|---|
@@ -218,12 +226,15 @@ Todos se pueden cambiar en **Settings → Keymap**, buscando `Bidaide` o `ADB:`.
 
 | Ajuste | Para qué |
 |---|---|
+| Idioma | *Automático* sigue el idioma del IDE (y usa inglés si no está entre los cuatro), o elige English, Español, Français o Italiano. Para verlo en todas partes, reinicia el IDE. |
 | Ruta de `gh` | Solo si no está en una ruta habitual. El botón *Comprobar* te dice si hay sesión. |
 | Avisos de GitHub | Activarlos y cada cuántos minutos consultar. |
 | Respuestas guardadas | `Nombre = texto`, una por línea. `\n` es un salto de línea. |
-| Carpeta de capturas | Dónde van capturas, grabaciones y datos extraídos. Por defecto, el Escritorio. |
+| Carpeta de capturas | Dónde van capturas, grabaciones, datos extraídos y descargas del CI y de releases. Por defecto, el Escritorio. En IntelliJ IDEA se llama *Carpeta de descargas*. |
 | Comandos propios | `Nombre = comando shell`, uno por línea. |
 | Perfiles de dispositivo | `Nombre = clave=valor, clave=valor`, uno por línea. |
+
+Los ajustes de ADB (favoritos, comandos propios y perfiles) solo aparecen en Android Studio.
 
 <details>
 <summary><b>Claves de los perfiles de dispositivo</b></summary>
@@ -307,6 +318,14 @@ pégala en la issue desde github.com.
 </details>
 
 <details>
+<summary><b>Elegí un idioma y parte del plugin sigue en el anterior</b></summary>
+
+Los diálogos, avisos y menús nuevos cambian al momento. Las pestañas que ya estaban abiertas y los menús que el
+IDE ya había mostrado se quedan como estaban hasta que reinicies el IDE. Los nombres propios de GitHub (pull
+request, issue, merge, commit...) y lo que devuelve GitHub tal cual, como el estado de los checks, no se traducen.
+</details>
+
+<details>
 <summary><b>Otros límites que conviene saber</b></summary>
 
 - Los comentarios en línea se escriben sobre «Todos los cambios»; la vista commit a commit es de solo lectura.
@@ -326,7 +345,15 @@ pégala en la issue desde github.com.
 ```
 
 El build compila contra el Android Studio local indicado en `gradle.properties` (`androidStudioPath`) y usa su
-JBR 21. Para abrir un segundo IDE de pruebas mientras hay otro en marcha:
+JBR 21. `./gradlew verifyPlugin` comprueba el plugin contra ese Android Studio y contra IntelliJ IDEA
+(`intellijIdeaPath`, o `intellijIdeaVersion` si no está instalado). Lo que necesita Android va en
+`bidaide-android.xml`, que solo se carga en Android Studio; el código de GitHub llega a ello por `AndroidBridge`.
+
+Los textos de la interfaz están en `src/main/resources/messages/BidaideBundle*.properties`: el archivo sin sufijo
+(inglés) es la base y `_es`, `_fr` e `_it` las traducciones. Un texto nuevo va en los cuatro con la misma clave;
+`BidaideBundleTest` falla si falta una clave, sobra o no coinciden los `{0}`.
+
+Para abrir un segundo IDE de pruebas mientras hay otro en marcha:
 
 ```sh
 ./gradlew runIde -PsandboxDir=build/otro-sandbox

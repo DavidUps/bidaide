@@ -1,5 +1,6 @@
 package com.bidaide.github.ui
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GitHubUser
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
@@ -16,7 +17,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.Icon
@@ -27,24 +27,23 @@ import javax.swing.JPanel
 import javax.swing.ListCellRenderer
 import javax.swing.SwingConstants
 
-/** "hace 8 min", "hace 2 días", "el 28 ago": how GitHub dates things in lists. */
+/** "8 min ago", "2 days ago", "on Aug 28": how GitHub dates things in lists, in the language of the texts. */
 object TimeAgo {
-    private val SPANISH = Locale.forLanguageTag("es")
-    private val THIS_YEAR = DateTimeFormatter.ofPattern("d MMM", SPANISH)
-    private val OTHER_YEAR = DateTimeFormatter.ofPattern("d MMM yyyy", SPANISH)
 
     fun format(iso: String?, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): String {
         val then = iso?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return ""
         val elapsed = Duration.between(then, now)
         return when {
-            elapsed.isNegative || elapsed.toMinutes() < 1 -> "ahora"
-            elapsed.toMinutes() < 60 -> "hace ${elapsed.toMinutes()} min"
-            elapsed.toHours() < 24 -> "hace ${elapsed.toHours()} h"
-            elapsed.toDays() == 1L -> "ayer"
-            elapsed.toDays() < 30 -> "hace ${elapsed.toDays()} días"
+            elapsed.isNegative || elapsed.toMinutes() < 1 -> BidaideBundle.message("github.time.now")
+            elapsed.toMinutes() < 60 -> BidaideBundle.message("github.time.minutes", elapsed.toMinutes())
+            elapsed.toHours() < 24 -> BidaideBundle.message("github.time.hours", elapsed.toHours())
+            elapsed.toDays() == 1L -> BidaideBundle.message("github.time.yesterday")
+            elapsed.toDays() < 30 -> BidaideBundle.message("github.time.days", elapsed.toDays())
             else -> {
                 val date = then.atZone(zone)
-                "el " + (if (date.year == now.atZone(zone).year) THIS_YEAR else OTHER_YEAR).format(date).replace(".", "")
+                val pattern = if (date.year == now.atZone(zone).year) "github.time.datePattern" else "github.time.datePatternWithYear"
+                val text = DateTimeFormatter.ofPattern(BidaideBundle.message(pattern), BidaideBundle.locale()).format(date).replace(".", "")
+                BidaideBundle.message("github.time.date", text)
             }
         }
     }

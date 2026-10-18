@@ -1,5 +1,6 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
 import com.google.gson.JsonParser
 
 /** One line of the "can this be merged?" checklist. */
@@ -57,7 +58,7 @@ object GhMergeRules {
      * itself reports for the pull request (review decision, required flag of each check, merge state).
      */
     fun evaluate(stateJson: String, rulesJson: String?, protectionJson: String?): GhMergeStatus {
-        val pr = pullRequest(stateJson) ?: throw GhException("No se pudo leer el estado de la pull request.")
+        val pr = pullRequest(stateJson) ?: throw GhException(BidaideBundle.message("gh.merge.noState"))
         val rules = rulesJson?.let { json -> JsonParser.parseString(json).asJsonArray.filter { it.isJsonObject }.map { it.asJsonObject } }.orEmpty()
         fun rule(type: String) = rules.firstOrNull { it.string("type") == type }
         fun parameters(type: String) = rule(type)?.obj("parameters")
@@ -65,7 +66,7 @@ object GhMergeRules {
         val out = ArrayList<MergeRequirement>()
         fun add(label: String, state: MergeRequirement.State, detail: String) = out.add(MergeRequirement(label, state, detail))
 
-        if (pr.bool("isDraft")) add("Borrador", MergeRequirement.State.FAIL, "márcala como lista para revisión")
+        if (pr.bool("isDraft")) add(BidaideBundle.message("gh.merge.draft"), MergeRequirement.State.FAIL, BidaideBundle.message("gh.merge.draft.detail"))
 
         // --- Reviews ---
         val reviews = pr.nodes("latestOpinionatedReviews")
@@ -76,13 +77,13 @@ object GhMergeRules {
             protection?.takeIf { it.bool("requiresApprovingReviews") }?.int("requiredApprovingReviewCount") ?: 0,
         )
         val decision = pr.string("reviewDecision")
-        val minimum = if (needed > 0) " de $needed necesarias" else ""
+        val approvalCount = if (needed > 0) BidaideBundle.message("gh.merge.approvalsOf", approvals, needed) else BidaideBundle.message("gh.merge.approvals", approvals)
         when {
-            objectors.isNotEmpty() -> add("Reviews", MergeRequirement.State.FAIL, "${objectors.joinToString()} pidió cambios · $approvals aprobaciones$minimum")
-            approvals < needed -> add("Reviews", MergeRequirement.State.PENDING, "$approvals aprobaciones$minimum")
-            decision == "REVIEW_REQUIRED" -> add("Reviews", MergeRequirement.State.PENDING, "$approvals aprobaciones; falta una review obligatoria (code owners o último push)")
-            needed > 0 || decision == "APPROVED" -> add("Reviews", MergeRequirement.State.OK, "$approvals aprobaciones$minimum")
-            else -> add("Reviews", MergeRequirement.State.INFO, "no se exigen · $approvals aprobaciones")
+            objectors.isNotEmpty() -> add(BidaideBundle.message("gh.merge.reviews"), MergeRequirement.State.FAIL, BidaideBundle.message("gh.merge.reviews.changesRequested", objectors.joinToString(), approvalCount))
+            approvals < needed -> add(BidaideBundle.message("gh.merge.reviews"), MergeRequirement.State.PENDING, approvalCount)
+            decision == "REVIEW_REQUIRED" -> add(BidaideBundle.message("gh.merge.reviews"), MergeRequirement.State.PENDING, BidaideBundle.message("gh.merge.reviews.missingRequired", approvals))
+            needed > 0 || decision == "APPROVED" -> add(BidaideBundle.message("gh.merge.reviews"), MergeRequirement.State.OK, approvalCount)
+            else -> add(BidaideBundle.message("gh.merge.reviews"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.reviews.notRequired", approvals))
         }
 
         // --- Checks ---
@@ -98,23 +99,23 @@ object GhMergeRules {
         val requiredFailed = required.filter { it.result in FAILED }
         val requiredPending = required.filter { it.result !in FAILED && it.result !in PASSED }
         when {
-            requiredFailed.isNotEmpty() -> add("Checks obligatorios", MergeRequirement.State.FAIL, "fallan: ${requiredFailed.joinToString { it.name }}")
+            requiredFailed.isNotEmpty() -> add(BidaideBundle.message("gh.merge.requiredChecks"), MergeRequirement.State.FAIL, BidaideBundle.message("gh.merge.checks.failing", requiredFailed.joinToString { it.name }))
             requiredPending.isNotEmpty() || missing.isNotEmpty() -> add(
-                "Checks obligatorios", MergeRequirement.State.PENDING, "en curso o sin empezar: ${(requiredPending.map { it.name } + missing).joinToString()}",
+                BidaideBundle.message("gh.merge.requiredChecks"), MergeRequirement.State.PENDING, BidaideBundle.message("gh.merge.checks.pending", (requiredPending.map { it.name } + missing).joinToString()),
             )
-            required.isNotEmpty() -> add("Checks obligatorios", MergeRequirement.State.OK, "${required.size} de ${required.size} pasan")
-            else -> add("Checks obligatorios", MergeRequirement.State.INFO, "ninguno")
+            required.isNotEmpty() -> add(BidaideBundle.message("gh.merge.requiredChecks"), MergeRequirement.State.OK, BidaideBundle.message("gh.merge.checks.passing", required.size, required.size))
+            else -> add(BidaideBundle.message("gh.merge.requiredChecks"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.none"))
         }
         val optionalFailed = checks.filter { it !in required && it.result in FAILED }
-        if (optionalFailed.isNotEmpty()) add("Checks opcionales", MergeRequirement.State.INFO, "fallan sin bloquear: ${optionalFailed.joinToString { it.name }}")
+        if (optionalFailed.isNotEmpty()) add(BidaideBundle.message("gh.merge.optionalChecks"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.optionalChecks.failing", optionalFailed.joinToString { it.name }))
 
         // --- Conversations ---
         val unresolved = pr.nodes("reviewThreads").count { !it.bool("isResolved") }
         val mustResolve = parameters("pull_request")?.bool("required_review_thread_resolution") == true || protection?.bool("requiresConversationResolution") == true
         when {
-            mustResolve && unresolved > 0 -> add("Conversaciones", MergeRequirement.State.FAIL, "$unresolved sin resolver (es obligatorio resolverlas)")
-            mustResolve -> add("Conversaciones", MergeRequirement.State.OK, "todas resueltas")
-            unresolved > 0 -> add("Conversaciones", MergeRequirement.State.INFO, "$unresolved sin resolver (no bloquea)")
+            mustResolve && unresolved > 0 -> add(BidaideBundle.message("gh.merge.conversations"), MergeRequirement.State.FAIL, BidaideBundle.message("gh.merge.conversations.mustResolve", unresolved))
+            mustResolve -> add(BidaideBundle.message("gh.merge.conversations"), MergeRequirement.State.OK, BidaideBundle.message("gh.merge.conversations.resolved"))
+            unresolved > 0 -> add(BidaideBundle.message("gh.merge.conversations"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.conversations.unresolved", unresolved))
         }
 
         // --- Branch ---
@@ -122,37 +123,37 @@ object GhMergeRules {
         val strict = parameters("required_status_checks")?.bool("strict_required_status_checks_policy") == true || protection?.bool("requiresStrictStatusChecks") == true
         val base = pr.string("baseRefName").orEmpty()
         when {
-            mergeState == "BEHIND" && strict -> add("Rama al día", MergeRequirement.State.FAIL, "por detrás de $base: actualiza la rama")
-            mergeState == "BEHIND" -> add("Rama al día", MergeRequirement.State.INFO, "por detrás de $base (no bloquea)")
-            strict -> add("Rama al día", MergeRequirement.State.OK, "al día con $base")
+            mergeState == "BEHIND" && strict -> add(BidaideBundle.message("gh.merge.upToDate"), MergeRequirement.State.FAIL, BidaideBundle.message("gh.merge.upToDate.behindStrict", base))
+            mergeState == "BEHIND" -> add(BidaideBundle.message("gh.merge.upToDate"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.upToDate.behind", base))
+            strict -> add(BidaideBundle.message("gh.merge.upToDate"), MergeRequirement.State.OK, BidaideBundle.message("gh.merge.upToDate.ok", base))
         }
         when (pr.string("mergeable")) {
-            "CONFLICTING" -> add("Conflictos", MergeRequirement.State.FAIL, "hay conflictos con $base")
-            "MERGEABLE" -> add("Conflictos", MergeRequirement.State.OK, "ninguno")
-            else -> add("Conflictos", MergeRequirement.State.PENDING, "GitHub aún lo está calculando")
+            "CONFLICTING" -> add(BidaideBundle.message("gh.merge.conflicts"), MergeRequirement.State.FAIL, BidaideBundle.message("gh.merge.conflicts.with", base))
+            "MERGEABLE" -> add(BidaideBundle.message("gh.merge.conflicts"), MergeRequirement.State.OK, BidaideBundle.message("gh.merge.none"))
+            else -> add(BidaideBundle.message("gh.merge.conflicts"), MergeRequirement.State.PENDING, BidaideBundle.message("gh.merge.conflicts.unknown"))
         }
 
         // --- Rules that cannot be checked from here, but explain a refused merge ---
         if (rule("required_linear_history") != null || protection?.bool("requiresLinearHistory") == true) {
-            add("Historial lineal", MergeRequirement.State.INFO, "obligatorio: fusiona con squash o rebase")
+            add(BidaideBundle.message("gh.merge.linearHistory"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.linearHistory.detail"))
         }
         if (rule("required_signatures") != null || protection?.bool("requiresCommitSignatures") == true) {
-            add("Commits firmados", MergeRequirement.State.INFO, "obligatorios")
+            add(BidaideBundle.message("gh.merge.signedCommits"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.signedCommits.detail"))
         }
-        if (rule("merge_queue") != null) add("Cola de merge", MergeRequirement.State.INFO, "la rama usa merge queue")
-        if (rule("required_deployments") != null) add("Despliegues", MergeRequirement.State.INFO, "se exige un despliegue previo correcto")
+        if (rule("merge_queue") != null) add(BidaideBundle.message("gh.merge.queue"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.queue.detail"))
+        if (rule("required_deployments") != null) add(BidaideBundle.message("gh.merge.deployments"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.deployments.detail"))
         if (rulesJson == null && protectionJson == null) {
-            add("Reglas de la rama", MergeRequirement.State.INFO, "no se pudieron leer; el resultado usa solo lo que GitHub indica en la PR")
+            add(BidaideBundle.message("gh.merge.branchRules"), MergeRequirement.State.INFO, BidaideBundle.message("gh.merge.branchRules.unreadable"))
         }
 
         val verdict = when (mergeState) {
-            "CLEAN", "HAS_HOOKS" -> "Lista para fusionar"
-            "UNSTABLE" -> "Se puede fusionar, con checks no obligatorios fallando"
-            "BLOCKED" -> "Bloqueada: no cumple los requisitos de $base"
-            "BEHIND" -> "Por detrás de $base"
-            "DIRTY" -> "Con conflictos"
-            "DRAFT" -> "Borrador"
-            else -> "GitHub aún está calculando el estado"
+            "CLEAN", "HAS_HOOKS" -> BidaideBundle.message("gh.merge.verdict.clean")
+            "UNSTABLE" -> BidaideBundle.message("gh.merge.verdict.unstable")
+            "BLOCKED" -> BidaideBundle.message("gh.merge.verdict.blocked", base)
+            "BEHIND" -> BidaideBundle.message("gh.merge.verdict.behind", base)
+            "DIRTY" -> BidaideBundle.message("gh.merge.verdict.dirty")
+            "DRAFT" -> BidaideBundle.message("gh.merge.draft")
+            else -> BidaideBundle.message("gh.merge.verdict.unknown")
         }
         return GhMergeStatus(verdict, out)
     }

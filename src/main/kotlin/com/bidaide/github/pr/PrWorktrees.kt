@@ -1,9 +1,10 @@
 package com.bidaide.github.pr
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhRepoContext
 import java.io.File
 
-/** How "Probar en dispositivo" gets the pull request's code. */
+/** How "Test on Device" gets the pull request's code. */
 enum class PrTestMode {
     /** Builds in a separate git worktree; the user's checkout, branch and uncommitted changes stay as they are. */
     WORKTREE,
@@ -12,8 +13,9 @@ enum class PrTestMode {
     CHECKOUT;
 
     fun label(hasLocalChanges: Boolean): String = when (this) {
-        WORKTREE -> "En un worktree aparte (no toca tu copia)"
-        CHECKOUT -> "Checkout en tu copia" + if (hasLocalChanges) " — ⚠ tienes cambios sin commit" else ""
+        WORKTREE -> BidaideBundle.message("github.pr.test.worktreeMode")
+        CHECKOUT -> BidaideBundle.message("github.pr.test.checkoutMode") +
+            if (hasLocalChanges) " — ⚠ " + BidaideBundle.message("github.pr.test.hasChanges") else ""
     }
 
     companion object {
@@ -109,9 +111,9 @@ object PrWorktrees {
 
     /** What to tell the user when the build in the worktree fails. */
     fun failureHint(copiedLocalProperties: Boolean): String = buildString {
-        append("El worktree solo tiene los archivos versionados en git")
-        append(if (copiedLocalProperties) " y una copia de tu local.properties" else "")
-        append(". Si la build necesita archivos que no están en el repositorio (google-services.json, ")
-        append("claves en .properties...), cópialos a mano al worktree o usa «Checkout en tu copia».")
+        append(
+            if (copiedLocalProperties) BidaideBundle.message("github.pr.worktree.failureHintWithLocalProperties")
+            else BidaideBundle.message("github.pr.worktree.failureHint"),
+        )
     }
 }
