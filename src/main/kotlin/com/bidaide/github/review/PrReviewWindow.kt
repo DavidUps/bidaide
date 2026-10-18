@@ -11,6 +11,7 @@ import com.bidaide.gh.GhPrFile
 import com.bidaide.gh.GhReviewCommands
 import com.bidaide.gh.GhReviewThread
 import com.bidaide.gh.ReviewEvent
+import com.bidaide.github.ui.GhLoadingPanel
 import com.intellij.diff.chains.SimpleDiffRequestChain
 import com.intellij.diff.impl.CacheDiffRequestChainProcessor
 import com.intellij.icons.AllIcons
@@ -90,6 +91,10 @@ class PrReviewWindow(private val session: PrReviewSession) {
 
     private val frame = FrameWrapper(project, "Bidaide.PrReview", false, "PR #${session.number} — ${session.pr.title}")
 
+    /** The diff side, under a spinner while the files of another commit are fetched. */
+    private val diffHolder = JPanel(BorderLayout())
+    private val diffLoading = GhLoadingPanel(diffHolder, frame)
+
     fun show() {
         configureTree()
         configureThreads()
@@ -99,7 +104,8 @@ class PrReviewWindow(private val session: PrReviewSession) {
             secondComponent = titled(BidaideBundle.message("gh.merge.conversations"), JBScrollPane(threadsList))
         }
         main.firstComponent = left
-        main.secondComponent = processor.component
+        diffHolder.add(processor.component, BorderLayout.CENTER)
+        main.secondComponent = diffLoading.component
         val root = JPanel(BorderLayout()).apply {
             add(toolbar(), BorderLayout.NORTH)
             add(main, BorderLayout.CENTER)
@@ -165,7 +171,7 @@ class PrReviewWindow(private val session: PrReviewSession) {
             show(wholePr)
             return
         }
-        GhCli.async(
+        diffLoading.async(
             project, BidaideBundle.message("github.review.loadingCommit", commit.oid.take(7)),
             onFailure = { scopeCombo.selectedItem = scope.commit ?: allChanges },
             work = { GhJson.commitDetail(GhCli.run(session.workDir, GhCommands.commit(commit.oid))) },
@@ -181,7 +187,10 @@ class PrReviewWindow(private val session: PrReviewSession) {
         val previous = processor
         processor = newProcessor()
         Disposer.register(frame, processor)
-        main.secondComponent = processor.component
+        diffHolder.removeAll()
+        diffHolder.add(processor.component, BorderLayout.CENTER)
+        diffHolder.revalidate()
+        diffHolder.repaint()
         Disposer.dispose(previous)
         fileNodes.clear()
         tree.model = buildTreeModel()

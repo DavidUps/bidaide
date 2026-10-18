@@ -7,6 +7,7 @@ import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhEvents
 import com.bidaide.gh.GhRepoContext
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.Disposable
 import com.intellij.ide.ui.laf.darcula.ui.DarculaButtonUI
 import com.intellij.openapi.ui.JBMenuItem
 import com.intellij.openapi.ui.JBPopupMenu
@@ -55,7 +56,7 @@ abstract class GhListDetailPanel<T : Any>(
     /** Optional second combo with quick filters such as "mine"; hidden when empty. */
     scopes: List<FilterOption> = emptyList(),
     private val createText: String? = BidaideBundle.message("github.list.new", noun),
-) : JPanel(BorderLayout()), LazyTab {
+) : JPanel(BorderLayout()), LazyTab, Disposable {
 
     /** A combo entry: [label] is shown, [value] is handed to [listArgs]. */
     class FilterOption(val label: String, val value: String)
@@ -77,6 +78,11 @@ abstract class GhListDetailPanel<T : Any>(
     private val detailScroll = JBScrollPane(detailPane)
     private val listScroll = JBScrollPane(list)
     private val splitter = OnePixelSplitter(false, "Bidaide.$noun.splitter", 0.4f)
+
+    /** Holds the list or, in board mode, the board, so the list spinner covers whichever is shown. */
+    private val listHolder = JPanel(BorderLayout()).apply { add(listScroll, BorderLayout.CENTER) }
+    private val listLoading = GhLoadingPanel(listHolder, this)
+    private val detailLoading = GhLoadingPanel(detail, this)
 
     private val headerHolder = JPanel(BorderLayout())
 
@@ -138,7 +144,10 @@ abstract class GhListDetailPanel<T : Any>(
      */
     protected fun showBoard(board: JComponent?) {
         splitter.orientation = board != null
-        splitter.firstComponent = board ?: listScroll
+        listHolder.removeAll()
+        listHolder.add(board ?: listScroll, BorderLayout.CENTER)
+        listHolder.revalidate()
+        listHolder.repaint()
         splitter.proportion = if (board != null) 0.6f else 0.4f
     }
 
@@ -158,7 +167,8 @@ abstract class GhListDetailPanel<T : Any>(
 
     init {
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        list.emptyText.text = BidaideBundle.message("github.list.loading")
+        // While loading, the spinner says so; the empty text is only for what came back.
+        list.emptyText.text = ""
         list.cellRenderer = richRow()?.let { RichRowRenderer(it) } ?: object : ColoredListCellRenderer<T>() {
             override fun customizeCellRenderer(list: JList<out T>, value: T?, index: Int, selected: Boolean, hasFocus: Boolean) {
                 value?.let { renderCell(this, it) }
@@ -212,8 +222,8 @@ abstract class GhListDetailPanel<T : Any>(
             add(headerHolder, BorderLayout.CENTER)
         }, BorderLayout.NORTH)
         detail.add(detailScroll, BorderLayout.CENTER)
-        splitter.firstComponent = listScroll
-        splitter.secondComponent = detail
+        splitter.firstComponent = listLoading.component
+        splitter.secondComponent = detailLoading.component
         add(header, BorderLayout.NORTH)
         add(splitter, BorderLayout.CENTER)
     }
@@ -245,8 +255,8 @@ abstract class GhListDetailPanel<T : Any>(
         val filter = stateCombo.item?.value.orEmpty()
         val scope = scopeCombo.item?.value.orEmpty()
         val search = searchField.text
-        if (model.isEmpty) list.emptyText.text = BidaideBundle.message("github.list.loading")
-        GhCli.async(
+        if (model.isEmpty) list.emptyText.text = ""
+        listLoading.async(
             project, BidaideBundle.message("github.list.loadingList", noun),
             onFailure = {
                 model.removeAll()
@@ -282,7 +292,7 @@ abstract class GhListDetailPanel<T : Any>(
             showDetail(null)
             return
         }
-        GhCli.async(
+        detailLoading.async(
             project, BidaideBundle.message("github.list.loadingItem", noun, title(item)),
             work = { fetchDetail(GhRepoContext.requireWorkDir(project), item) },
         ) { detail ->
@@ -352,6 +362,8 @@ abstract class GhListDetailPanel<T : Any>(
         /** Whether [total] buttons, of which [visible] may show, leave enough over to deserve a "More" menu. */
         internal fun foldsButtons(total: Int, visible: Int): Boolean = total - visible >= 2
     }
+
+    override fun dispose() = autoRefresh.stop()
 
     protected fun button(text: String, onClick: () -> Unit) = JButton(text).apply { addActionListener { onClick() } }
 
