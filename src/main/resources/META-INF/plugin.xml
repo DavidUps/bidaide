@@ -20,14 +20,14 @@
     <resource-bundle>messages.BidaideBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="Bidaide" displayType="BALLOON" key="notification.group.bidaide"/>
+        <notificationGroup id="Bidaide" displayType="BALLOON" key="notification.group.bidaide" bundle="messages.BidaideBundle"/>
         <toolWindow id="Bidaide" anchor="bottom" icon="/icons/bidaide.svg" canCloseContents="true"
                     factoryClass="com.bidaide.github.toolwindow.BidaideToolWindowFactory"/>
         <postStartupActivity implementation="com.bidaide.github.current.CurrentBranchPrService$Startup"/>
         <statusBarWidgetFactory id="Bidaide.PrStatus" order="after gitWidget"
                                 implementation="com.bidaide.github.current.PrStatusWidgetFactory"/>
         <diff.DiffExtension implementation="com.bidaide.github.review.PrReviewDiffExtension"/>
-        <applicationConfigurable parentId="tools" id="com.bidaide.settings" key="settings.displayName"
+        <applicationConfigurable parentId="tools" id="com.bidaide.settings" key="settings.displayName" bundle="messages.BidaideBundle"
                                  instance="com.bidaide.settings.BidaideConfigurable"/>
     </extensions>
 

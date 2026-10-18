@@ -5,6 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.text.MessageFormat
+import java.util.Locale
 import java.util.Properties
 
 class BidaideBundleTest {
@@ -50,6 +51,23 @@ class BidaideBundleTest {
                 assertTrue(where, '&' !in value)
             }
         }
+    }
+
+    @Test
+    fun `a chosen language is used, with English for the languages there is no translation for`() {
+        fun text(tag: String) = BidaideBundle.message(Locale.forLanguageTag(tag), "settings.gh.noSession", "/bin/gh")
+        assertEquals("/bin/gh found, but not signed in. Run: gh auth login", text("en"))
+        assertEquals("/bin/gh encontrado, pero sin sesión. Ejecuta: gh auth login", text("es"))
+        // The doubled apostrophe of MessageFormat comes out single.
+        assertEquals("/bin/gh trouvé, mais aucune session. Exécutez : gh auth login", text("fr"))
+        assertEquals("Impossible d'ouvrir db", BidaideBundle.message(Locale.FRENCH, "adb.db.cannotOpen", "db"))
+        assertEquals("/bin/gh trovato, ma senza sessione. Esegui: gh auth login", text("it"))
+        assertEquals(text("en"), text("de"))
+        // Without an application (and so without settings) texts follow the IDE, which in tests is English.
+        assertEquals(text("en"), BidaideBundle.message("settings.gh.noSession", "/bin/gh"))
+        assertEquals(Locale.ENGLISH, BidaideBundle.locale())
+        // Numbers are not grouped by locale.
+        assertEquals("Merging PR #12345", BidaideBundle.message("github.pr.merge.task", 12345))
     }
 
     @Test
