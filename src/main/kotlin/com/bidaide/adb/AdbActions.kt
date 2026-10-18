@@ -1,6 +1,7 @@
 package com.bidaide.adb
 
 import com.android.ddmlib.IDevice
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.settings.BidaideSettings
 import com.intellij.ide.actions.RevealFileAction
@@ -156,23 +157,23 @@ class AdbDeepLinkAction : AdbBaseAction() {
         val project = e.project ?: return
         val history = History(project, "Bidaide.Adb.DeepLinks")
         val combo = ComboBox(history.values().toTypedArray()).apply { isEditable = true }
-        val onlyApp = JBCheckBox("Abrir solo con la app del proyecto", true)
+        val onlyApp = JBCheckBox(BidaideBundle.message("adb.deepLink.onlyApp"), true)
         val dialog = object : DialogWrapper(project) {
             init {
-                title = "Abrir deep link"
-                setOKButtonText("Abrir")
+                title = BidaideBundle.message("adb.deepLink.title")
+                setOKButtonText(BidaideBundle.message("adb.deepLink.ok"))
                 init()
             }
 
             override fun createCenterPanel(): JComponent = panel {
-                row("URL:") { cell(combo).align(AlignX.FILL).comment("https://..., miapp://ruta, etc.") }
+                row("URL:") { cell(combo).align(AlignX.FILL).comment(BidaideBundle.message("adb.deepLink.comment")) }
                 row { cell(onlyApp) }
             }
 
             override fun getPreferredFocusedComponent() = combo
 
             override fun doValidate(): ValidationInfo? =
-                if (combo.editor.item?.toString().isNullOrBlank()) ValidationInfo("Escribe una URL", combo) else null
+                if (combo.editor.item?.toString().isNullOrBlank()) ValidationInfo(BidaideBundle.message("adb.deepLink.empty"), combo) else null
         }
         if (!dialog.showAndGet()) return
         val url = combo.editor.item.toString().trim()
@@ -180,7 +181,7 @@ class AdbDeepLinkAction : AdbBaseAction() {
         AdbTargetResolver.resolve(project, onlyApp.isSelected) { devices, packageName ->
             AdbTasks.run(project, "Deep link", devices, packageName) { ctx ->
                 AdbShell.openDeepLink(ctx.device, url, packageName)
-                "Abierto $url"
+                BidaideBundle.message("adb.deepLink.done", url)
             }
         }
     }
@@ -191,12 +192,12 @@ class AdbAppLocaleAction : AdbBaseAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val locales = Messages.showInputDialog(
-            project, "Idioma de la app (p. ej. es-ES, en-US, ar). Vacío = idioma del sistema.", "Idioma de la app", null,
+            project, BidaideBundle.message("adb.appLocale.prompt"), BidaideBundle.message("adb.appLocale.title"), null,
         ) ?: return
         AdbTargetResolver.resolve(project, needsPackage = true) { devices, packageName ->
-            AdbTasks.run(project, "Idioma de la app", devices, packageName) { ctx ->
+            AdbTasks.run(project, BidaideBundle.message("adb.appLocale.title"), devices, packageName) { ctx ->
                 AdbShell.setAppLocale(ctx.device, ctx.packageName, locales)
-                if (locales.isBlank()) "${ctx.packageName} vuelve al idioma del sistema" else "${ctx.packageName} en ${locales.trim()}"
+                if (locales.isBlank()) BidaideBundle.message("adb.appLocale.system", ctx.packageName) else BidaideBundle.message("adb.appLocale.set", ctx.packageName, locales.trim())
             }
         }
     }
@@ -207,12 +208,12 @@ class AdbRestoreAction : AdbBaseAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         AdbTargetResolver.resolve(project, needsPackage = true) { devices, packageName ->
-            val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("tar").withTitle("Estado guardado de $packageName")
+            val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("tar").withTitle(BidaideBundle.message("adb.restore.chooserTitle", packageName))
             val start = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(AdbFiles.backupDir(packageName!!))
             val archive = FileChooser.chooseFile(descriptor, project, start) ?: return@resolve
-            AdbTasks.run(project, "Restaurar estado", devices, packageName) { ctx ->
+            AdbTasks.run(project, BidaideBundle.message("adb.restore.task"), devices, packageName) { ctx ->
                 AdbFiles.restore(ctx.device, ctx.packageName, VfsUtilCore.virtualToIoFile(archive))
-                "Estado de ${ctx.packageName} restaurado desde ${archive.name}"
+                BidaideBundle.message("adb.restore.done", ctx.packageName, archive.name)
             }
         }
     }
@@ -224,12 +225,12 @@ class AdbReverseAction : AdbBaseAction() {
         val project = e.project ?: return
         val history = History(project, "Bidaide.Adb.ReversePorts")
         val input = Messages.showInputDialog(
-            project, "Puerto, o «dispositivo:local» si son distintos (p. ej. 8080 o 3000:8080). Vacío = quitar todos.",
+            project, BidaideBundle.message("adb.reverse.prompt"),
             "adb reverse", null, history.values().firstOrNull().orEmpty(), null,
         ) ?: return
         val ports = input.trim().split(':').map { it.trim() }
         if (input.isNotBlank() && (ports.size > 2 || ports.any { it.toIntOrNull() == null })) {
-            Notifier.warn(project, "ADB", "Puerto no válido: $input")
+            Notifier.warn(project, "ADB", BidaideBundle.message("adb.reverse.invalid", input))
             return
         }
         if (input.isNotBlank()) history.remember(input.trim())
@@ -237,12 +238,12 @@ class AdbReverseAction : AdbBaseAction() {
             AdbTasks.run(project, "adb reverse", devices, null) { ctx ->
                 if (input.isBlank()) {
                     AdbFiles.adb(project, "-s", ctx.device.serialNumber, "reverse", "--remove-all")
-                    "Redirecciones de puertos eliminadas"
+                    BidaideBundle.message("adb.reverse.removed")
                 } else {
                     val devicePort = ports.first()
                     val localPort = ports.last()
                     AdbFiles.adb(project, "-s", ctx.device.serialNumber, "reverse", "tcp:$devicePort", "tcp:$localPort")
-                    "localhost:$devicePort del dispositivo → localhost:$localPort de este equipo"
+                    BidaideBundle.message("adb.reverse.done", devicePort, localPort)
                 }
             }
         }
@@ -258,28 +259,28 @@ class AdbPairAction : AdbBaseAction() {
         val connectAddress = JBTextField()
         val dialog = object : DialogWrapper(project) {
             init {
-                title = "Emparejar dispositivo por Wi-Fi"
-                setOKButtonText("Conectar")
+                title = BidaideBundle.message("adb.pair.title")
+                setOKButtonText(BidaideBundle.message("adb.pair.ok"))
                 init()
             }
 
             override fun createCenterPanel(): JComponent = panel {
-                row { comment("En el dispositivo: Opciones de desarrollador → Depuración inalámbrica → Vincular con código.") }
-                row("IP:puerto de vinculación:") { cell(pairAddress).align(AlignX.FILL) }
-                row("Código:") { cell(code).align(AlignX.FILL).comment("Deja ambos vacíos si ya está vinculado.") }
-                row("IP:puerto de conexión:") {
-                    cell(connectAddress).align(AlignX.FILL).comment("El de la pantalla principal de Depuración inalámbrica.")
+                row { comment(BidaideBundle.message("adb.pair.help")) }
+                row(BidaideBundle.message("adb.pair.pairAddress")) { cell(pairAddress).align(AlignX.FILL) }
+                row(BidaideBundle.message("adb.pair.code")) { cell(code).align(AlignX.FILL).comment(BidaideBundle.message("adb.pair.code.comment")) }
+                row(BidaideBundle.message("adb.pair.connectAddress")) {
+                    cell(connectAddress).align(AlignX.FILL).comment(BidaideBundle.message("adb.pair.connectAddress.comment"))
                 }
             }
 
             override fun doValidate(): ValidationInfo? = when {
-                pairAddress.text.isBlank() != code.text.isBlank() -> ValidationInfo("Indica dirección y código de vinculación", pairAddress)
-                pairAddress.text.isBlank() && connectAddress.text.isBlank() -> ValidationInfo("Indica al menos una dirección", connectAddress)
+                pairAddress.text.isBlank() != code.text.isBlank() -> ValidationInfo(BidaideBundle.message("adb.pair.missingCode"), pairAddress)
+                pairAddress.text.isBlank() && connectAddress.text.isBlank() -> ValidationInfo(BidaideBundle.message("adb.pair.missingAddress"), connectAddress)
                 else -> null
             }
         }
         if (!dialog.showAndGet()) return
-        object : Task.Backgroundable(project, "ADB: emparejando por Wi-Fi", false) {
+        object : Task.Backgroundable(project, BidaideBundle.message("adb.pair.progress"), false) {
             override fun run(indicator: ProgressIndicator) {
                 try {
                     val messages = ArrayList<String>()
@@ -287,7 +288,7 @@ class AdbPairAction : AdbBaseAction() {
                     if (connectAddress.text.isNotBlank()) messages += AdbFiles.adb(project, "connect", connectAddress.text.trim())
                     Notifier.info(project, "ADB", messages.joinToString("<br>"))
                 } catch (ex: Exception) {
-                    Notifier.error(project, "ADB: emparejar por Wi-Fi", ex.message ?: ex.javaClass.simpleName)
+                    Notifier.error(project, BidaideBundle.message("adb.pair.error"), ex.message ?: ex.javaClass.simpleName)
                 }
             }
         }.queue()
@@ -330,7 +331,7 @@ class AdbCustomCommandsGroup : ActionGroup(), DumbAware {
                     AdbTargetResolver.resolve(project, command.needsPackage) { devices, packageName ->
                         AdbTasks.run(project, command.name, devices, packageName) { ctx ->
                             val output = AdbShell.run(ctx.device, command.resolve(packageName), timeoutSeconds = 60)
-                            "${command.name}: ${output.ifEmpty { "hecho" }.take(MAX_OUTPUT)}"
+                            "${command.name}: ${output.ifEmpty { BidaideBundle.message("adb.custom.done") }.take(MAX_OUTPUT)}"
                         }
                     }
                 }
@@ -350,7 +351,7 @@ class AdbForgetSelectionAction : AdbBaseAction() {
             deviceSerial = null
             packageName = null
         }
-        Notifier.info(project, "ADB", "La próxima operación preguntará dispositivo y aplicación.")
+        Notifier.info(project, "ADB", BidaideBundle.message("adb.forget.done"))
     }
 }
 

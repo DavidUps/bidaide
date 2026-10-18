@@ -266,8 +266,8 @@ class MoreFeaturesTest {
         assertEquals("ar-EG", profiles[1].settings["locale"])
         assertTrue(profiles[1].needsPackage)
         assertNull(profiles[1].problem())
-        assertEquals("clave desconocida «volumen»", profiles[2].problem())
-        assertEquals("valor «si» no válido para «dark»", profiles[3].problem())
+        assertEquals("unknown key “volumen”", profiles[2].problem())
+        assertEquals("invalid value “si” for “dark”", profiles[3].problem())
         assertNotNull(DeviceProfile("x", mapOf("font" to "9")).problem())
         assertNotNull(DeviceProfile("x", emptyMap()).problem())
         assertEquals("system", DeviceProfile.parse("S = locale=System").single().settings["locale"])
@@ -321,28 +321,28 @@ class MoreFeaturesTest {
         val info = BugReports.Info("Google Pixel 8", "15", "35", "com.app", "1.2.0")
         val body = BugReports.body(info, "linea 1\n```\nlinea 3")
         assertTrue(body.contains("- App: `com.app` 1.2.0"))
-        assertTrue(body.contains("- Dispositivo: Google Pixel 8"))
+        assertTrue(body.contains("- Device: Google Pixel 8"))
         assertTrue(body.contains("- Android: 15 (API 35)"))
         assertTrue(body.contains("<details><summary>Logcat</summary>"))
         // A code fence inside the log must not close ours.
         assertEquals(2, Regex("```").findAll(body).count())
         assertFalse(BugReports.body(info, "  ").contains("Logcat"))
         assertTrue(BugReports.body(info, "x".repeat(200_000)).length < 65_536)
-        assertTrue(BugReports.body(BugReports.Info("d", "15", "35", "com.app", null), "").contains("(versión desconocida)"))
+        assertTrue(BugReports.body(BugReports.Info("d", "15", "35", "com.app", null), "").contains("(unknown version)"))
     }
 
     @Test
     fun `sqlite files can be browsed with the bundled driver`() {
         val file = Files.createTempFile("bidaide-test", ".db").toFile()
         try {
-            assertTrue(Sqlite.run(file, "CREATE TABLE \"my \"\"table\" (id INTEGER PRIMARY KEY, name TEXT, data BLOB)").message.contains("filas afectadas"))
+            assertTrue(Sqlite.run(file, "CREATE TABLE \"my \"\"table\" (id INTEGER PRIMARY KEY, name TEXT, data BLOB)").message.contains("rows affected"))
             Sqlite.run(file, "INSERT INTO \"my \"\"table\" (name, data) VALUES ('uno', x'0102'), (NULL, NULL)")
             assertEquals(listOf("my \"table"), Sqlite.tables(file))
             val result = Sqlite.run(file, Sqlite.selectAll("my \"table"))
             assertEquals(listOf("id", "name", "data"), result.columns)
             assertEquals(listOf(listOf("1", "uno", "<blob 2 bytes>"), listOf("2", "NULL", "NULL")), result.rows)
             assertFalse(result.truncated)
-            assertEquals("2 filas", result.message)
+            assertEquals("2 rows", result.message)
         } finally {
             file.delete()
         }

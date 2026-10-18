@@ -1,5 +1,6 @@
 package com.bidaide.adb
 
+import com.bidaide.BidaideBundle
 import com.intellij.openapi.project.Project
 import java.io.File
 
@@ -8,10 +9,10 @@ object ApkInstaller {
     /** Must be called on the EDT: it may ask which device to use. */
     fun install(project: Project, apk: File) {
         AdbTargetResolver.resolve(project, needsPackage = false) { devices, _ ->
-            AdbTasks.run(project, "Instalar ${apk.name}", devices, null) { ctx ->
+            AdbTasks.run(project, BidaideBundle.message("adb.apk.install", apk.name), devices, null) { ctx ->
                 // -t accepts test-only builds, -d a lower versionCode than the installed one.
                 ctx.device.installPackage(apk.path, true, "-t", "-d")
-                "${apk.name} instalada"
+                BidaideBundle.message("adb.apk.installed", apk.name)
             }
         }
     }

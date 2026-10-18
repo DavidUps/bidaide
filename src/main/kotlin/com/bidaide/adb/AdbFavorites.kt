@@ -1,5 +1,6 @@
 package com.bidaide.adb
 
+import com.bidaide.BidaideBundle
 import com.bidaide.settings.BidaideSettings
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionManager
@@ -80,7 +81,7 @@ internal object AdbFavoritesStore {
     }
 }
 
-/** The favourite operations, first in the ADB popup under a "Favoritos" header; empty when there are none. */
+/** The favourite operations, first in the ADB popup under a "Favorites" header; empty when there are none. */
 class AdbFavoritesGroup : ActionGroup(), DumbAware {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
@@ -88,7 +89,7 @@ class AdbFavoritesGroup : ActionGroup(), DumbAware {
         val manager = ActionManager.getInstance()
         val actions = AdbFavoritesStore.ids().mapNotNull { manager.getAction(it) }.filter { it !is ActionGroup }
         if (actions.isEmpty()) return AnAction.EMPTY_ARRAY
-        return (listOf(Separator("Favoritos")) + actions + Separator.getInstance()).toTypedArray()
+        return (listOf(Separator(BidaideBundle.message("adb.favorites.separator"))) + actions + Separator.getInstance()).toTypedArray()
     }
 }
 
@@ -107,7 +108,7 @@ internal class AdbFavoritesDialog private constructor(project: Project?, candida
     private val filter = SearchTextField(false)
 
     init {
-        title = "Favoritos de ADB"
+        title = BidaideBundle.message("adb.favorites.title")
         filter.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) {
                 boxes.forEach { (candidate, box) -> box.isVisible = AdbFavorites.matches(candidate, filter.text) }
@@ -126,7 +127,7 @@ internal class AdbFavoritesDialog private constructor(project: Project?, candida
             boxes.forEach { add(it.second) }
         }
         return panel {
-            row { comment("Las operaciones marcadas aparecen primero en el popup de ADB, en el mismo orden que en esta lista.") }
+            row { comment(BidaideBundle.message("adb.favorites.comment")) }
             row { cell(filter).align(AlignX.FILL) }
             row {
                 cell(JBScrollPane(list).apply { preferredSize = JBUI.size(460, 420) }).align(Align.FILL)

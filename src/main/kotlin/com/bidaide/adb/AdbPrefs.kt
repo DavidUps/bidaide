@@ -1,6 +1,7 @@
 package com.bidaide.adb
 
 import com.android.ddmlib.IDevice
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.editor.EditorFactory
@@ -63,7 +64,7 @@ object AdbPrefs {
     }
 
     private fun requireSafe(name: String): String =
-        name.takeIf(SAFE_NAME::matches) ?: throw AdbException("Nombre de archivo no admitido: $name")
+        name.takeIf(SAFE_NAME::matches) ?: throw AdbException(BidaideBundle.message("adb.prefs.badName", name))
 
     /** Android refuses to load a malformed preferences file and silently starts from empty, so check before writing. */
     fun xmlProblem(xml: String): String? = try {
@@ -72,7 +73,7 @@ object AdbPrefs {
         }.newDocumentBuilder().apply { setErrorHandler(null) }.parse(InputSource(StringReader(xml)))
         null
     } catch (e: Exception) {
-        e.message ?: "XML no válido"
+        e.message ?: BidaideBundle.message("adb.prefs.invalidXml")
     }
 }
 
@@ -83,12 +84,12 @@ class AdbPrefsAction : AdbBaseAction() {
         AdbTargetResolver.resolve(project, needsPackage = true) { devices, pkg ->
             val packageName = pkg ?: return@resolve
             val device = devices.first()
-            AdbTasks.fetch(project, "Preferencias de $packageName", work = { AdbPrefs.list(device, packageName) }) { files ->
+            AdbTasks.fetch(project, BidaideBundle.message("adb.prefs.task", packageName), work = { AdbPrefs.list(device, packageName) }) { files ->
                 when (files.size) {
-                    0 -> Notifier.info(project, "ADB", "$packageName no tiene SharedPreferences guardadas en ${AdbTargetResolver.deviceLabel(device)}.")
+                    0 -> Notifier.info(project, "ADB", BidaideBundle.message("adb.prefs.none", packageName, AdbTargetResolver.deviceLabel(device)))
                     1 -> edit(project, device, packageName, files.single())
                     else -> JBPopupFactory.getInstance().createPopupChooserBuilder(files)
-                        .setTitle("SharedPreferences de $packageName")
+                        .setTitle(BidaideBundle.message("adb.prefs.chooserTitle", packageName))
                         .setNamerForFiltering { it }
                         .setItemChosenCallback { edit(project, device, packageName, it) }
                         .createPopup()
@@ -99,12 +100,12 @@ class AdbPrefsAction : AdbBaseAction() {
     }
 
     private fun edit(project: Project, device: IDevice, packageName: String, name: String) {
-        AdbTasks.fetch(project, "Leyendo $name", work = { AdbPrefs.read(device, packageName, name) }) { xml ->
+        AdbTasks.fetch(project, BidaideBundle.message("adb.prefs.reading", name), work = { AdbPrefs.read(device, packageName, name) }) { xml ->
             val dialog = PrefsDialog(project, "$name — $packageName", xml)
             if (!dialog.showAndGet() || dialog.xml == xml) return@fetch
-            AdbTasks.run(project, "Guardar $name", listOf(device), packageName) { ctx ->
+            AdbTasks.run(project, BidaideBundle.message("adb.prefs.saveTask", name), listOf(device), packageName) { ctx ->
                 AdbPrefs.write(ctx.device, ctx.packageName, name, dialog.xml)
-                "$name guardado; ${ctx.packageName} reiniciada"
+                BidaideBundle.message("adb.prefs.saved", name, ctx.packageName)
             }
         }
     }
@@ -127,16 +128,16 @@ private class PrefsDialog(project: Project, dialogTitle: String, initial: String
 
     init {
         title = dialogTitle
-        setOKButtonText("Guardar y reiniciar app")
+        setOKButtonText(BidaideBundle.message("adb.prefs.ok"))
         init()
     }
 
     override fun createCenterPanel(): JComponent = panel {
         row { cell(editor).align(Align.FILL) }.resizableRow()
-        row { comment("Al guardar se detiene la app, se sustituye el archivo y se vuelve a iniciar.") }
+        row { comment(BidaideBundle.message("adb.prefs.comment")) }
     }
 
     override fun getPreferredFocusedComponent() = editor
 
-    override fun doValidate(): ValidationInfo? = AdbPrefs.xmlProblem(xml)?.let { ValidationInfo("XML no válido: $it", editor) }
+    override fun doValidate(): ValidationInfo? = AdbPrefs.xmlProblem(xml)?.let { ValidationInfo(BidaideBundle.message("adb.prefs.invalidXmlDetail", it), editor) }
 }

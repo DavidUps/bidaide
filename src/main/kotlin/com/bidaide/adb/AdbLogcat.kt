@@ -1,6 +1,7 @@
 package com.bidaide.adb
 
 import com.android.ddmlib.IDevice
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.filters.TextConsoleBuilderFactory
@@ -28,11 +29,11 @@ object AdbLogcat {
 
     fun open(project: Project, device: IDevice, packageName: String) {
         AdbTasks.fetch(
-            project, "Logcat de $packageName",
+            project, BidaideBundle.message("adb.logcat.task", packageName),
             work = {
                 // logcat filters by process id, so the app has to be running; a restarted app gets a new id.
                 val pid = AdbShell.pidOf(device, packageName)
-                    ?: throw AdbException("$packageName no está en ejecución en ${AdbTargetResolver.deviceLabel(device)}. Iníciala y repite.")
+                    ?: throw AdbException(BidaideBundle.message("adb.logcat.notRunning", packageName, AdbTargetResolver.deviceLabel(device)))
                 ColoredProcessHandler(GeneralCommandLine(command(AdbFiles.adbExecutable(project).path, device.serialNumber, pid)))
             },
         ) { handler -> show(project, handler, "Logcat: $packageName") }
@@ -42,7 +43,7 @@ object AdbLogcat {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Bidaide")
         if (toolWindow == null) {
             handler.destroyProcess()
-            Notifier.warn(project, "ADB", "No se encuentra la ventana Bidaide.")
+            Notifier.warn(project, "ADB", BidaideBundle.message("adb.logcat.noToolWindow"))
             return
         }
         val console = TextConsoleBuilderFactory.getInstance().createBuilder(project).console

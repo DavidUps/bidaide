@@ -27,16 +27,16 @@ object Downloads {
     fun offer(project: Project, dir: File, what: String) {
         val android = AndroidBridge.instance
         val apks = if (android == null) emptyList() else findApks(dir)
-        val text = if (apks.isEmpty()) "$what descargado en ${dir.path}" else "$what descargado: ${apks.size} APK en ${dir.path}"
+        val text = if (apks.isEmpty()) BidaideBundle.message("adb.apk.downloaded", what, dir.path) else BidaideBundle.message("adb.apk.downloadedApks", what, apks.size, dir.path)
         val notification = NotificationGroupManager.getInstance().getNotificationGroup("Bidaide")
             .createNotification("Bidaide", text, NotificationType.INFORMATION)
         if (android != null) {
             for (apk in apks.take(MAX_OFFERED)) {
-                notification.addAction(NotificationAction.createSimple("Instalar ${apk.name}") { android.installApk(project, apk) })
+                notification.addAction(NotificationAction.createSimple(BidaideBundle.message("adb.apk.install", apk.name)) { android.installApk(project, apk) })
             }
         }
         notification.addAction(NotificationAction.createSimple(RevealFileAction.getActionName()) { RevealFileAction.openDirectory(dir) })
         notification.notify(project)
-        if (apks.size > MAX_OFFERED) Notifier.info(project, "Bidaide", "Hay más APK; instala el resto con «ADB: Instalar APK...».")
+        if (apks.size > MAX_OFFERED) Notifier.info(project, "Bidaide", BidaideBundle.message("adb.apk.more"))
     }
 }

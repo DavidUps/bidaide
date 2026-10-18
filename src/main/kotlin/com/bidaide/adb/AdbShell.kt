@@ -2,6 +2,7 @@ package com.bidaide.adb
 
 import com.android.ddmlib.CollectingOutputReceiver
 import com.android.ddmlib.IDevice
+import com.bidaide.BidaideBundle
 import java.util.concurrent.TimeUnit
 
 class AdbException(message: String) : Exception(message)
@@ -140,7 +141,7 @@ object AdbShell {
     /** Fails with a clear message when `run-as` is refused, which is what happens for non-debuggable builds. */
     fun checkRunAs(output: String, packageName: String) {
         if (output.contains("run-as:")) {
-            throw AdbException("No se puede acceder a los datos de $packageName (¿build no depurable?): ${output.lineSequence().first()}")
+            throw AdbException(BidaideBundle.message("adb.shell.runAs", packageName, output.lineSequence().first()))
         }
     }
 
@@ -153,7 +154,7 @@ object AdbShell {
 
     fun clearData(device: IDevice, packageName: String) {
         val out = run(device, "pm clear $packageName")
-        if (!out.contains("Success")) throw AdbException(out.ifEmpty { "pm clear falló" })
+        if (!out.contains("Success")) throw AdbException(out.ifEmpty { BidaideBundle.message("adb.shell.clearFailed") })
     }
 
     /** Wipes only cache dirs. Needs `run-as`, so it only works for debuggable builds. */
@@ -169,7 +170,7 @@ object AdbShell {
     fun launcherActivity(device: IDevice, packageName: String): String {
         val out = run(device, "cmd package resolve-activity --brief -c android.intent.category.LAUNCHER $packageName")
         return parseLauncherActivity(out)
-            ?: throw AdbException("No se encontró actividad de inicio para $packageName")
+            ?: throw AdbException(BidaideBundle.message("adb.shell.noLauncher", packageName))
     }
 
     fun start(device: IDevice, packageName: String, waitForDebugger: Boolean = false) {
