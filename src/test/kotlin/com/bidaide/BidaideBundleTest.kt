@@ -71,10 +71,11 @@ class BidaideBundleTest {
     }
 
     @Test
-    fun `every key used in the code and in plugin xml exists, and every key is used`() {
+    fun `every key used in the code and in the plugin descriptors exists, and every key is used`() {
         val sources = File("src/main/kotlin").walk().filter { it.extension == "kt" }.map { it.readText() }.joinToString("\n")
         val used = KEY_IN_CODE.findAll(sources).map { it.groupValues[1] }.toMutableSet()
-        val pluginXml = File("src/main/resources/META-INF/plugin.xml").readText()
+        // plugin.xml and the optional descriptors it loads, such as bidaide-android.xml.
+        val pluginXml = File("src/main/resources/META-INF").listFiles { file -> file.extension == "xml" }!!.joinToString("\n") { it.readText() }
         used += KEY_IN_XML.findAll(pluginXml).map { it.groupValues[1] }
         used += ACTION_IN_XML.findAll(pluginXml).map { "action.${it.groupValues[1]}.text" }
         used += GROUP_IN_XML.findAll(pluginXml).filter { "class=" !in it.value }.map { "group.${it.groupValues[1]}.text" }
