@@ -2,7 +2,8 @@
      plugin or Gradle. Nothing in plugin.xml refers to what is declared here; these actions join its menus through
      add-to-group, and the GitHub code reaches them through com.bidaide.AndroidBridge. -->
 <idea-plugin>
-    <depends>org.jetbrains.android</depends>
+    <!-- Keeps this file out of IntelliJ IDEA even when the Android plugin is installed there (see plugin.xml). -->
+    <depends>com.intellij.modules.androidstudio</depends>
     <!-- Bundled with Android Studio (the Android plugin needs it). Gives the project's Gradle JDK, used to build a
          pull request in its own worktree. -->
     <depends>com.intellij.gradle</depends>

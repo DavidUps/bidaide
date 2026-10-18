@@ -13,9 +13,11 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
     <!-- ADB, APK installs and "Probar en dispositivo" live in bidaide-android.xml, loaded only in Android Studio.
-         The condition is Android Studio itself and not org.jetbrains.android: the Android plugin IntelliJ IDEA can
-         install has a different API from the one this plugin is built and verified against. -->
-    <depends optional="true" config-file="bidaide-android.xml">com.intellij.modules.androidstudio</depends>
+         It hangs from the Android plugin, so that the Plugin Verifier puts that plugin's classes on the classpath
+         (with the Android Studio module as the condition it reports them missing on the Linux build CI uses).
+         bidaide-android.xml then requires Android Studio itself: the Android plugin IntelliJ IDEA can install has a
+         different API from the one this plugin is built and verified against. -->
+    <depends optional="true" config-file="bidaide-android.xml">org.jetbrains.android</depends>
 
     <resource-bundle>messages.BidaideBundle</resource-bundle>
 
