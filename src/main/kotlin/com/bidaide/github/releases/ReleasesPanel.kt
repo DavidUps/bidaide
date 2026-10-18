@@ -1,8 +1,7 @@
 package com.bidaide.github.releases
 
+import com.bidaide.Downloads
 import com.bidaide.Notifier
-import com.bidaide.adb.AdbFiles
-import com.bidaide.adb.ApkInstaller
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhRelease
 import com.bidaide.gh.GhReleases
@@ -85,11 +84,11 @@ class ReleasesPanel(project: Project) : GhListDetailPanel<GhRelease>(project, "r
         GhCli.async(
             project, "Descargando archivos de ${release.tagName}",
             work = {
-                val dir = File(AdbFiles.captureDir(), "bidaide-releases/${release.tagName.replace(Regex("[^A-Za-z0-9._-]+"), "_")}").apply { mkdirs() }
+                val dir = File(Downloads.captureDir(),"bidaide-releases/${release.tagName.replace(Regex("[^A-Za-z0-9._-]+"), "_")}").apply { mkdirs() }
                 GhCli.run(GhRepoContext.requireWorkDir(project), GhReleases.download(release.tagName, dir), GhCli.LONG_TIMEOUT_MILLIS)
                 dir
             },
-        ) { dir -> ApkInstaller.offer(project, dir, "Release ${release.tagName}") }
+        ) { dir -> Downloads.offer(project, dir, "Release ${release.tagName}") }
     }
 
     override fun create() {

@@ -1,0 +1,100 @@
+<!-- Loaded only in Android Studio (see the optional depends in plugin.xml): everything that needs ADB, the Android
+     plugin or Gradle. Nothing in plugin.xml refers to what is declared here; these actions join its menus through
+     add-to-group, and the GitHub code reaches them through com.bidaide.AndroidBridge. -->
+<idea-plugin>
+    <depends>org.jetbrains.android</depends>
+    <!-- Bundled with Android Studio (the Android plugin needs it). Gives the project's Gradle JDK, used to build a
+         pull request in its own worktree. -->
+    <depends>com.intellij.gradle</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceInterface="com.bidaide.AndroidBridge" serviceImplementation="com.bidaide.android.AndroidBridgeImpl"/>
+    </extensions>
+
+    <actions>
+        <action id="Bidaide.GitHub.DeletePrWorktrees" class="com.bidaide.android.DeletePrWorktreesAction"
+                text="Borrar worktrees de PRs..."
+                description="Borra los worktrees donde «Probar en dispositivo» compila las PRs">
+            <add-to-group group-id="Bidaide.GitHub.Repo" anchor="last"/>
+        </action>
+
+        <action id="Bidaide.Adb.InstallSelectedApk" class="com.bidaide.adb.AdbInstallSelectedApkAction"
+                text="Instalar APK en dispositivo" icon="AllIcons.Actions.Install">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+
+        <action id="Bidaide.Adb.Popup" class="com.bidaide.adb.AdbPopupAction" text="Operaciones ADB..."
+                description="Muestra todas las operaciones ADB en un popup">
+            <keyboard-shortcut keymap="Mac OS X" first-keystroke="shift ctrl A"/>
+            <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="shift ctrl A"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="shift ctrl alt A"/>
+            <add-to-group group-id="Bidaide.Menu" anchor="last"/>
+        </action>
+        <group id="Bidaide.Adb.Operations" text="ADB" popup="true">
+            <add-to-group group-id="Bidaide.Menu" anchor="last"/>
+            <group id="Bidaide.Adb.Favorites" class="com.bidaide.adb.AdbFavoritesGroup"/>
+            <action id="Bidaide.Adb.Uninstall" class="com.bidaide.adb.AdbUninstallAction" text="ADB: Desinstalar app"/>
+            <action id="Bidaide.Adb.Kill" class="com.bidaide.adb.AdbKillAction" text="ADB: Matar app"/>
+            <action id="Bidaide.Adb.Start" class="com.bidaide.adb.AdbStartAction" text="ADB: Iniciar app"/>
+            <action id="Bidaide.Adb.Restart" class="com.bidaide.adb.AdbRestartAction" text="ADB: Reiniciar app"/>
+            <action id="Bidaide.Adb.ClearData" class="com.bidaide.adb.AdbClearDataAction" text="ADB: Limpiar datos"/>
+            <action id="Bidaide.Adb.ClearDataRestart" class="com.bidaide.adb.AdbClearDataRestartAction" text="ADB: Limpiar datos y reiniciar"/>
+            <action id="Bidaide.Adb.ClearCache" class="com.bidaide.adb.AdbClearCacheAction" text="ADB: Limpiar caché"/>
+            <action id="Bidaide.Adb.Reinstall" class="com.bidaide.adb.AdbReinstallAction" text="ADB: Reinstalar app"/>
+            <action id="Bidaide.Adb.InstallApk" class="com.bidaide.adb.AdbInstallApkAction" text="ADB: Instalar APK..."/>
+            <separator/>
+            <action id="Bidaide.Adb.StartDebug" class="com.bidaide.adb.AdbStartDebugAction" text="ADB: Iniciar app con depurador"/>
+            <action id="Bidaide.Adb.RestartDebug" class="com.bidaide.adb.AdbRestartDebugAction" text="ADB: Reiniciar app con depurador"/>
+            <action id="Bidaide.Adb.ClearDataRestartDebug" class="com.bidaide.adb.AdbClearDataRestartDebugAction" text="ADB: Limpiar datos y reiniciar con depurador"/>
+            <separator/>
+            <action id="Bidaide.Adb.GrantPermissions" class="com.bidaide.adb.AdbGrantPermissionsAction" text="ADB: Conceder permisos"/>
+            <action id="Bidaide.Adb.RevokePermissions" class="com.bidaide.adb.AdbRevokePermissionsAction" text="ADB: Revocar permisos"/>
+            <action id="Bidaide.Adb.RevokePermissionsRestart" class="com.bidaide.adb.AdbRevokePermissionsRestartAction" text="ADB: Revocar permisos y reiniciar"/>
+            <separator/>
+            <action id="Bidaide.Adb.DeepLink" class="com.bidaide.adb.AdbDeepLinkAction" text="ADB: Abrir deep link..."/>
+            <action id="Bidaide.Adb.Screenshot" class="com.bidaide.adb.AdbScreenshotAction" text="ADB: Captura de pantalla"/>
+            <action id="Bidaide.Adb.Record" class="com.bidaide.adb.AdbRecordAction" text="ADB: Iniciar / detener grabación de pantalla"/>
+            <action id="Bidaide.Adb.Logcat" class="com.bidaide.adb.AdbLogcatAction" text="ADB: Logcat de la app"/>
+            <action id="Bidaide.Adb.SendText" class="com.bidaide.adb.AdbSendTextAction" text="ADB: Enviar texto..."/>
+            <action id="Bidaide.Adb.BugReport" class="com.bidaide.adb.AdbBugReportAction" text="ADB: Informe de bug a issue..."/>
+            <separator/>
+            <action id="Bidaide.Adb.DarkMode" class="com.bidaide.adb.AdbDarkModeAction" text="ADB: Alternar modo oscuro"/>
+            <action id="Bidaide.Adb.FontScale" class="com.bidaide.adb.AdbFontScaleAction" text="ADB: Alternar fuente grande"/>
+            <action id="Bidaide.Adb.AppLocale" class="com.bidaide.adb.AdbAppLocaleAction" text="ADB: Idioma de la app..."/>
+            <action id="Bidaide.Adb.Animations" class="com.bidaide.adb.AdbAnimationsAction" text="ADB: Alternar animaciones"/>
+            <action id="Bidaide.Adb.DontKeepActivities" class="com.bidaide.adb.AdbDontKeepActivitiesAction" text="ADB: Alternar «No mantener actividades»"/>
+            <action id="Bidaide.Adb.ShowTouches" class="com.bidaide.adb.AdbShowTouchesAction" text="ADB: Alternar mostrar toques"/>
+            <action id="Bidaide.Adb.Rotate" class="com.bidaide.adb.AdbRotateAction" text="ADB: Girar pantalla (vertical / horizontal)"/>
+            <action id="Bidaide.Adb.AutoRotate" class="com.bidaide.adb.AdbAutoRotateAction" text="ADB: Activar rotación automática"/>
+            <group id="Bidaide.Adb.Profiles" class="com.bidaide.adb.AdbProfilesGroup"/>
+            <separator/>
+            <action id="Bidaide.Adb.AirplaneMode" class="com.bidaide.adb.AdbAirplaneModeAction" text="ADB: Alternar modo avión"/>
+            <action id="Bidaide.Adb.WifiOn" class="com.bidaide.adb.AdbWifiOnAction" text="ADB: Activar Wi-Fi"/>
+            <action id="Bidaide.Adb.WifiOff" class="com.bidaide.adb.AdbWifiOffAction" text="ADB: Desactivar Wi-Fi"/>
+            <action id="Bidaide.Adb.MobileDataOn" class="com.bidaide.adb.AdbMobileDataOnAction" text="ADB: Activar datos móviles"/>
+            <action id="Bidaide.Adb.MobileDataOff" class="com.bidaide.adb.AdbMobileDataOffAction" text="ADB: Desactivar datos móviles"/>
+            <action id="Bidaide.Adb.BatteryLow" class="com.bidaide.adb.AdbBatteryLowAction" text="ADB: Simular batería baja (5 %)"/>
+            <action id="Bidaide.Adb.Doze" class="com.bidaide.adb.AdbDozeAction" text="ADB: Forzar modo Doze"/>
+            <action id="Bidaide.Adb.PowerReset" class="com.bidaide.adb.AdbPowerResetAction" text="ADB: Restaurar batería y Doze"/>
+            <action id="Bidaide.Adb.Location" class="com.bidaide.adb.AdbLocationAction" text="ADB: Simular ubicación GPS (emulador)..."/>
+            <action id="Bidaide.Adb.SlowNetwork" class="com.bidaide.adb.AdbSlowNetworkAction" text="ADB: Simular red lenta (emulador)"/>
+            <action id="Bidaide.Adb.NormalNetwork" class="com.bidaide.adb.AdbNormalNetworkAction" text="ADB: Restaurar velocidad de red (emulador)"/>
+            <action id="Bidaide.Adb.KillInBackground" class="com.bidaide.adb.AdbKillInBackgroundAction" text="ADB: Matar proceso en segundo plano"/>
+            <separator/>
+            <action id="Bidaide.Adb.Prefs" class="com.bidaide.adb.AdbPrefsAction" text="ADB: Ver / editar SharedPreferences..."/>
+            <action id="Bidaide.Adb.Database" class="com.bidaide.adb.AdbDatabaseAction" text="ADB: Explorar bases de datos..."/>
+            <action id="Bidaide.Adb.PullData" class="com.bidaide.adb.AdbPullDataAction" text="ADB: Extraer bases de datos y preferencias"/>
+            <action id="Bidaide.Adb.Backup" class="com.bidaide.adb.AdbBackupAction" text="ADB: Guardar estado de la app"/>
+            <action id="Bidaide.Adb.Restore" class="com.bidaide.adb.AdbRestoreAction" text="ADB: Restaurar estado de la app..."/>
+            <separator/>
+            <action id="Bidaide.Adb.Pair" class="com.bidaide.adb.AdbPairAction" text="ADB: Emparejar por Wi-Fi..."/>
+            <action id="Bidaide.Adb.Reverse" class="com.bidaide.adb.AdbReverseAction" text="ADB: Redirigir puerto (adb reverse)..."/>
+            <separator/>
+            <group id="Bidaide.Adb.Custom" class="com.bidaide.adb.AdbCustomCommandsGroup"/>
+            <separator/>
+            <action id="Bidaide.Adb.ForgetSelection" class="com.bidaide.adb.AdbForgetSelectionAction" text="ADB: Cambiar dispositivo / aplicación"/>
+            <action id="Bidaide.Adb.ManageFavorites" class="com.bidaide.adb.AdbManageFavoritesAction" text="ADB: Gestionar favoritos..."
+                    description="Elige qué operaciones ADB aparecen primero en el popup"/>
+        </group>
+    </actions>
+</idea-plugin>

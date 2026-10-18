@@ -1,8 +1,7 @@
 package com.bidaide.github.runs
 
+import com.bidaide.Downloads
 import com.bidaide.Notifier
-import com.bidaide.adb.AdbFiles
-import com.bidaide.adb.ApkInstaller
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhException
@@ -68,14 +67,14 @@ object CiArtifacts {
         GhCli.async(
             project, "Descargando artifact $name",
             work = {
-                val dir = File(AdbFiles.captureDir(), "bidaide-artifacts/$runId/${name.replace(Regex("[^A-Za-z0-9._-]+"), "_")}")
+                val dir = File(Downloads.captureDir(),"bidaide-artifacts/$runId/${name.replace(Regex("[^A-Za-z0-9._-]+"), "_")}")
                 // gh refuses to overwrite files from a previous download.
                 dir.deleteRecursively()
                 dir.mkdirs()
                 GhCli.run(GhRepoContext.requireWorkDir(project), downloadArgs(runId, name, dir), GhCli.LONG_TIMEOUT_MILLIS)
                 dir
             },
-        ) { dir -> ApkInstaller.offer(project, dir, "Artifact «$name»") }
+        ) { dir -> Downloads.offer(project, dir, "Artifact «$name»") }
     }
 
     private const val MAX_RUNS_CHECKED = 5

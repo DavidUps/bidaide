@@ -1,7 +1,6 @@
 package com.bidaide.settings
 
-import com.bidaide.adb.AdbFavoritesDialog
-import com.bidaide.adb.AdbFavoritesStore
+import com.bidaide.AndroidBridge
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhExecutable
 import com.intellij.openapi.application.ApplicationManager
@@ -22,7 +21,8 @@ class BidaideConfigurable : BoundConfigurable("Bidaide") {
     override fun createPanel(): DialogPanel {
         val settings = BidaideSettings.getInstance()
         val status = JLabel(" ")
-        val favorites = JLabel(describeFavorites())
+        val android = AndroidBridge.instance
+        val favorites = JLabel(android?.let(::describeFavorites).orEmpty())
         return panel {
             group("GitHub CLI") {
                 row("Ruta de gh:") {
@@ -53,10 +53,11 @@ class BidaideConfigurable : BoundConfigurable("Bidaide") {
                         .comment("Una por línea: <code>Nombre = texto</code>. <code>\\n</code> es un salto de línea. Aparecen al comentar una PR.")
                 }
             }
-            group("ADB") {
+            // Android Studio only (see AndroidBridge).
+            if (android != null) group("ADB") {
                 row("Favoritos:") {
                     button("Gestionar favoritos...") {
-                        if (AdbFavoritesDialog.edit(null)) favorites.text = describeFavorites()
+                        if (android.editAdbFavorites()) favorites.text = describeFavorites(android)
                     }.comment("Aparecen primero en el popup de ADB. Se guardan al aceptar el diálogo.")
                     cell(favorites)
                 }
@@ -82,7 +83,7 @@ class BidaideConfigurable : BoundConfigurable("Bidaide") {
         }
     }
 
-    private fun describeFavorites(): String = when (val count = AdbFavoritesStore.ids().size) {
+    private fun describeFavorites(android: AndroidBridge): String = when (val count = android.adbFavoritesCount()) {
         0 -> "Ninguno"
         1 -> "1 operación"
         else -> "$count operaciones"

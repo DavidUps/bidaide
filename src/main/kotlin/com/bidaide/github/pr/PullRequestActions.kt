@@ -1,5 +1,6 @@
 package com.bidaide.github.pr
 
+import com.bidaide.AndroidBridge
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -39,8 +40,10 @@ object PullRequestActions {
     /**
      * "Probar en dispositivo": asks whether to build in a separate worktree (the default, leaves the user's copy alone)
      * or to check the PR out in the user's copy. The last choice comes preselected, but the question is always asked.
+     * Android Studio only: callers hide it when [AndroidBridge.isAvailable] is false.
      */
     fun testOnDevice(project: Project, pr: GhPullRequest) {
+        val android = AndroidBridge.instance ?: return
         val properties = PropertiesComponent.getInstance(project)
         val hasLocalChanges = ChangeListManager.getInstance(project).allChanges.isNotEmpty()
         JBPopupFactory.getInstance().createPopupChooserBuilder(PrTestMode.entries)
@@ -50,7 +53,7 @@ object PullRequestActions {
             .setItemChosenCallback { mode ->
                 properties.setValue(TEST_MODE_KEY, mode.name)
                 when (mode) {
-                    PrTestMode.WORKTREE -> PrWorktreeRun.start(project, pr)
+                    PrTestMode.WORKTREE -> android.runPullRequestInWorktree(project, pr)
                     PrTestMode.CHECKOUT -> if (!hasLocalChanges || confirmCheckoutWithChanges(project)) checkoutAndRun(project, pr)
                 }
             }

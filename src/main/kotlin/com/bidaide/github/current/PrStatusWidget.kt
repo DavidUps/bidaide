@@ -1,5 +1,6 @@
 package com.bidaide.github.current
 
+import com.bidaide.AndroidBridge
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhMergeRules
 import com.bidaide.gh.GhPullRequest
@@ -60,12 +61,15 @@ class PrStatusWidget(private val project: Project) : StatusBarWidget, StatusBarW
     override fun getPopup(): JBPopup? {
         val pr = service.pullRequest ?: return null
         val group = DefaultActionGroup(
-            action("¿Cumple los requisitos de merge?") { showMergeStatus(pr) },
-            action("Revisar cambios") { PrReviewDiff.open(project, pr) },
-            action("Probar en dispositivo") { PullRequestActions.testOnDevice(project, pr) },
-            action("Ver en Bidaide") { ToolWindowManager.getInstance(project).getToolWindow("Bidaide")?.activate(null) },
-            action("Abrir en navegador") { BrowserUtil.browse(pr.url) },
-            action("Actualizar estado") { service.refresh() },
+            listOfNotNull(
+                action("¿Cumple los requisitos de merge?") { showMergeStatus(pr) },
+                action("Revisar cambios") { PrReviewDiff.open(project, pr) },
+                // Android Studio only (see AndroidBridge).
+                if (AndroidBridge.isAvailable) action("Probar en dispositivo") { PullRequestActions.testOnDevice(project, pr) } else null,
+                action("Ver en Bidaide") { ToolWindowManager.getInstance(project).getToolWindow("Bidaide")?.activate(null) },
+                action("Abrir en navegador") { BrowserUtil.browse(pr.url) },
+                action("Actualizar estado") { service.refresh() },
+            ),
         )
         val context = DataManager.getInstance().getDataContext(WindowManager.getInstance().getStatusBar(project)?.component)
         return JBPopupFactory.getInstance().createActionGroupPopup(

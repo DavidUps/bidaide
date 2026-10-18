@@ -1,4 +1,4 @@
-package com.bidaide.github.pr
+package com.bidaide.android
 
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
@@ -15,6 +15,8 @@ import com.bidaide.gh.GhException
 import com.bidaide.gh.GhPullRequest
 import com.bidaide.gh.GhRepoContext
 import com.bidaide.github.actions.GitHubProjectAction
+import com.bidaide.github.pr.PrAppModule
+import com.bidaide.github.pr.PrWorktrees
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.ColoredProcessHandler
@@ -247,7 +249,7 @@ object PrWorktreeRun {
     }
 }
 
-/** Tools → Bidaide → GitHub → "Borrar worktrees de PRs...". */
+/** Tools → Bidaide → GitHub → "Borrar worktrees de PRs...". Android Studio only, like the worktrees it deletes. */
 class DeletePrWorktreesAction : GitHubProjectAction() {
     override fun actionPerformed(e: AnActionEvent) {
         PrWorktreeRun.deleteWorktrees(e.project ?: return)

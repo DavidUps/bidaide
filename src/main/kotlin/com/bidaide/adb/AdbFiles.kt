@@ -1,7 +1,7 @@
 package com.bidaide.adb
 
 import com.android.ddmlib.IDevice
-import com.bidaide.settings.BidaideSettings
+import com.bidaide.Downloads
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.openapi.application.ApplicationManager
@@ -22,14 +22,7 @@ object AdbFiles {
     private const val REMOTE_DIR = "/data/local/tmp"
     private const val TAR_TIMEOUT_SECONDS = 180L
 
-    /** Where captures and exported data go: the configured folder, else the Desktop, else the home folder. */
-    fun captureDir(): File {
-        val configured = BidaideSettings.getInstance().captureDir
-        val home = File(System.getProperty("user.home"))
-        val dir = if (configured.isNotEmpty()) File(configured) else File(home, "Desktop").takeIf { it.isDirectory } ?: home
-        dir.mkdirs()
-        return dir
-    }
+    fun captureDir(): File = Downloads.captureDir()
 
     fun backupDir(packageName: String): File = File(captureDir(), "bidaide-backups/$packageName").apply { mkdirs() }
 

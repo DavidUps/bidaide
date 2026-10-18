@@ -1,5 +1,6 @@
 package com.bidaide.github.pr
 
+import com.bidaide.AndroidBridge
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -96,8 +97,11 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
             add(button("Pedir cambios") { review(item, ReviewKind.REQUEST_CHANGES) })
             add(button("Comentar") { comment(item) })
         }
-        add(button("Probar en dispositivo") { PullRequestActions.testOnDevice(project, item) })
-        add(button("APK del CI") { CiArtifacts.forBranch(project, item.headRefName) })
+        // Building, installing and starting the app need Android Studio (see AndroidBridge).
+        if (AndroidBridge.isAvailable) {
+            add(button("Probar en dispositivo") { PullRequestActions.testOnDevice(project, item) })
+            add(button("APK del CI") { CiArtifacts.forBranch(project, item.headRefName) })
+        }
         if (item.isOpen) {
             if (item.isDraft) {
                 add(button("Marcar lista") { runAndReload("Marcando PR #$n como lista", GhCommands.prReady(n), "PR #$n lista para revisión") })
