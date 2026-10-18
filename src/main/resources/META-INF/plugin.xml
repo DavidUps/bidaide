@@ -17,52 +17,52 @@
          install has a different API from the one this plugin is built and verified against. -->
     <depends optional="true" config-file="bidaide-android.xml">com.intellij.modules.androidstudio</depends>
 
+    <resource-bundle>messages.BidaideBundle</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="Bidaide" displayType="BALLOON"/>
+        <notificationGroup id="Bidaide" displayType="BALLOON" key="notification.group.bidaide"/>
         <toolWindow id="Bidaide" anchor="bottom" icon="/icons/bidaide.svg" canCloseContents="true"
                     factoryClass="com.bidaide.github.toolwindow.BidaideToolWindowFactory"/>
         <postStartupActivity implementation="com.bidaide.github.current.CurrentBranchPrService$Startup"/>
         <statusBarWidgetFactory id="Bidaide.PrStatus" order="after gitWidget"
                                 implementation="com.bidaide.github.current.PrStatusWidgetFactory"/>
         <diff.DiffExtension implementation="com.bidaide.github.review.PrReviewDiffExtension"/>
-        <applicationConfigurable parentId="tools" id="com.bidaide.settings" displayName="Bidaide"
+        <applicationConfigurable parentId="tools" id="com.bidaide.settings" key="settings.displayName"
                                  instance="com.bidaide.settings.BidaideConfigurable"/>
     </extensions>
 
+    <applicationListeners>
+        <!-- Applies the language chosen in Bidaide's settings to the actions below before the first menu is built. -->
+        <listener class="com.bidaide.BidaideActionTexts$Startup" topic="com.intellij.ide.AppLifecycleListener"/>
+    </applicationListeners>
+
+    <!-- Texts come from messages/BidaideBundle: action.<id>.text, action.<id>.description and group.<id>.text. -->
     <actions>
         <action id="Bidaide.Pr.AddComment" class="com.bidaide.github.review.AddPrCommentAction">
             <add-to-group group-id="Diff.EditorPopupMenu" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="control alt C"/>
         </action>
 
-        <group id="Bidaide.GitHub.File" text="Bidaide GitHub" popup="true" icon="AllIcons.Vcs.Vendors.Github">
+        <group id="Bidaide.GitHub.File" popup="true" icon="AllIcons.Vcs.Vendors.Github">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
             <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
-            <action id="Bidaide.GitHub.Open" class="com.bidaide.github.actions.OpenInGitHubAction" text="Abrir en GitHub"/>
-            <action id="Bidaide.GitHub.CopyLink" class="com.bidaide.github.actions.CopyGitHubLinkAction"
-                    text="Copiar enlace permanente de GitHub"/>
-            <action id="Bidaide.GitHub.Gist" class="com.bidaide.github.actions.CreateGistAction" text="Crear gist..."/>
-            <action id="Bidaide.GitHub.IssueFromSelection" class="com.bidaide.github.actions.CreateIssueFromSelectionAction"
-                    text="Crear issue desde selección..."/>
-            <action id="Bidaide.GitHub.LinePullRequest" class="com.bidaide.github.actions.FindPullRequestForLineAction"
-                    text="¿Qué PR trajo esta línea?"/>
+            <action id="Bidaide.GitHub.Open" class="com.bidaide.github.actions.OpenInGitHubAction"/>
+            <action id="Bidaide.GitHub.CopyLink" class="com.bidaide.github.actions.CopyGitHubLinkAction"/>
+            <action id="Bidaide.GitHub.Gist" class="com.bidaide.github.actions.CreateGistAction"/>
+            <action id="Bidaide.GitHub.IssueFromSelection" class="com.bidaide.github.actions.CreateIssueFromSelectionAction"/>
+            <action id="Bidaide.GitHub.LinePullRequest" class="com.bidaide.github.actions.FindPullRequestForLineAction"/>
         </group>
 
-        <group id="Bidaide.Menu" text="Bidaide" popup="true" icon="/icons/bidaide.svg">
+        <group id="Bidaide.Menu" popup="true" icon="/icons/bidaide.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
-            <action id="Bidaide.GitHub.ToolWindow" class="com.bidaide.github.actions.ShowGitHubToolWindowAction"
-                    text="Abrir ventana Bidaide" icon="/icons/bidaide.svg"/>
+            <action id="Bidaide.GitHub.ToolWindow" class="com.bidaide.github.actions.ShowGitHubToolWindowAction" icon="/icons/bidaide.svg"/>
             <reference ref="Bidaide.GitHub.File"/>
-            <group id="Bidaide.GitHub.Repo" text="GitHub" popup="true" icon="AllIcons.Vcs.Vendors.Github">
-                <action id="Bidaide.GitHub.SearchCode" class="com.bidaide.github.actions.SearchGitHubCodeAction"
-                        text="Buscar código en GitHub..."/>
-                <action id="Bidaide.GitHub.SwitchAccount" class="com.bidaide.github.actions.SwitchGitHubAccountAction"
-                        text="Cambiar cuenta de GitHub..."/>
-                <action id="Bidaide.GitHub.Clone" class="com.bidaide.github.actions.CloneGitHubRepositoryAction"
-                        text="Clonar repositorio..."/>
-                <action id="Bidaide.GitHub.Publish" class="com.bidaide.github.actions.PublishToGitHubAction"
-                        text="Publicar proyecto en GitHub..."/>
+            <group id="Bidaide.GitHub.Repo" popup="true" icon="AllIcons.Vcs.Vendors.Github">
+                <action id="Bidaide.GitHub.SearchCode" class="com.bidaide.github.actions.SearchGitHubCodeAction"/>
+                <action id="Bidaide.GitHub.SwitchAccount" class="com.bidaide.github.actions.SwitchGitHubAccountAction"/>
+                <action id="Bidaide.GitHub.Clone" class="com.bidaide.github.actions.CloneGitHubRepositoryAction"/>
+                <action id="Bidaide.GitHub.Publish" class="com.bidaide.github.actions.PublishToGitHubAction"/>
             </group>
         </group>
     </actions>
