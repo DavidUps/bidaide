@@ -65,6 +65,15 @@ class BidaideConfigurable : BoundConfigurable(BidaideBundle.message("settings.di
                         .comment(BidaideBundle.message("settings.savedReplies.comment"))
                 }
             }
+            // Without ADB the folder only holds CI artifacts and release assets.
+            if (android == null) group(BidaideBundle.message("settings.downloads.group")) {
+                row(BidaideBundle.message("settings.downloads.dir")) {
+                    textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle(BidaideBundle.message("settings.downloads.dir.title")))
+                        .bindText(settings::captureDir)
+                        .align(AlignX.FILL)
+                        .comment(BidaideBundle.message("settings.downloads.dir.comment"))
+                }
+            }
             // Android Studio only (see AndroidBridge).
             if (android != null) group("ADB") {
                 row(BidaideBundle.message("settings.adb.favorites")) {
