@@ -10,6 +10,7 @@ import com.bidaide.github.projects.ProjectsPanel
 import com.bidaide.github.releases.ReleasesPanel
 import com.bidaide.github.runs.RunsPanel
 import com.bidaide.github.ui.LazyTab
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
@@ -35,7 +36,13 @@ class BidaideToolWindowFactory : ToolWindowFactory, DumbAware {
         })
         for ((title, panel) in panels) {
             // Only log tabs opened later can be closed.
-            toolWindow.contentManager.addContent(factory.createContent(panel, title, false).apply { isCloseable = false })
+            toolWindow.contentManager.addContent(
+                factory.createContent(panel, title, false).apply {
+                    isCloseable = false
+                    // Tabs with spinners or timers stop them when the tool window goes away.
+                    (panel as? Disposable)?.let(::setDisposer)
+                },
+            )
         }
         project.messageBus.connect(toolWindow.disposable).subscribe(GhEvents.TOPIC, GhEvents.Listener {
             panels.forEach { (_, panel) -> (panel as? LazyTab)?.takeIf { it.loaded }?.reload() }

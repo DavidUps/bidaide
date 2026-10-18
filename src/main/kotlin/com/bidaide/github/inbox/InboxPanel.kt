@@ -9,12 +9,14 @@ import com.bidaide.gh.GhNotifications
 import com.bidaide.gh.GhRepoContext
 import com.bidaide.gh.GitHubUser
 import com.bidaide.github.review.PrReviewDiff
+import com.bidaide.github.ui.GhLoadingPanel
 import com.bidaide.github.ui.LazyTab
 import com.bidaide.github.ui.RichRow
 import com.bidaide.github.ui.RichRowRenderer
 import com.bidaide.github.ui.TimeAgo
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
@@ -51,7 +53,7 @@ import javax.swing.event.DocumentEvent
  * reason, one per repository), the notifications in the middle, and "all / unread" plus a search box on top.
  * Everything is fetched once per reload; the views are filters over that, so switching between them is instant.
  */
-class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab {
+class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab, Disposable {
     override var loaded = false
         private set
 
@@ -67,6 +69,7 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
     private val allToggle = JToggleButton(BidaideBundle.message("gh.scope.all"), true)
     private val unreadToggle = JToggleButton(BidaideBundle.message("github.inbox.unread"))
     private val search = SearchTextField(false)
+    private val listLoading = GhLoadingPanel(JBScrollPane(list).apply { border = JBUI.Borders.empty() }, this)
 
     private val openButton = JButton(BidaideBundle.message("github.inbox.open"))
     private val reviewButton = JButton(BidaideBundle.message("github.pr.button.review"))
@@ -84,7 +87,8 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
 
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
         list.cellRenderer = RichRowRenderer(::row)
-        list.emptyText.text = BidaideBundle.message("github.list.loading")
+        // While loading, the spinner says so; the empty text is only for what came back.
+        list.emptyText.text = ""
         list.addListSelectionListener { if (!it.valueIsAdjusting) updateButtons() }
         object : DoubleClickListener() {
             override fun onDoubleClick(event: MouseEvent): Boolean {
@@ -135,7 +139,7 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
         }
         val splitter = OnePixelSplitter(false, "Bidaide.inbox.splitter", 0.2f).apply {
             firstComponent = JBScrollPane(views).apply { border = JBUI.Borders.empty() }
-            secondComponent = JBScrollPane(list).apply { border = JBUI.Borders.empty() }
+            secondComponent = listLoading.component
         }
         add(top, BorderLayout.NORTH)
         add(splitter, BorderLayout.CENTER)
@@ -144,7 +148,7 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
 
     override fun reload() {
         loaded = true
-        GhCli.async(
+        listLoading.async(
             project, BidaideBundle.message("github.inbox.loading"),
             onFailure = { list.emptyText.text = BidaideBundle.message("github.list.loadFailed") },
             work = {
@@ -168,11 +172,13 @@ class InboxPanel(private val project: Project) : JPanel(BorderLayout()), LazyTab
         val selectedId = list.selectedValue?.id
         val shown = Inbox.filter(notifications, selectedView, unreadToggle.isSelected, search.text)
         listModel.replaceAll(shown)
-        list.emptyText.text = if (loaded) BidaideBundle.message("github.inbox.empty") else BidaideBundle.message("github.list.loading")
+        list.emptyText.text = if (loaded) BidaideBundle.message("github.inbox.empty") else ""
         shown.indexOfFirst { it.id == selectedId }.takeIf { it >= 0 }?.let { list.selectedIndex = it }
         views.repaint()
         updateButtons()
     }
+
+    override fun dispose() {}
 
     private fun updateButtons() {
         val selected = list.selectedValue
