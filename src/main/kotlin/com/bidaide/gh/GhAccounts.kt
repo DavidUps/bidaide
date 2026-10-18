@@ -1,7 +1,9 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
+
 class GhAccount(val host: String, val login: String, val active: Boolean) {
-    override fun toString() = "$login @ $host${if (active) "  (activa)" else ""}"
+    override fun toString() = "$login @ $host${if (active) "  " + BidaideBundle.message("gh.account.active") else ""}"
 }
 
 /** The accounts `gh auth login` knows about. Switching is global: it also changes what `gh` does in a terminal. */

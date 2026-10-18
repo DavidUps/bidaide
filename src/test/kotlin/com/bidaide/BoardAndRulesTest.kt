@@ -44,16 +44,16 @@ class BoardAndRulesTest {
         )
         val byLabel = status.requirements.associateBy { it.label }
         assertEquals(State.PENDING, byLabel.getValue("Reviews").state)
-        assertEquals("1 aprobaciones de 2 necesarias", byLabel.getValue("Reviews").detail)
+        assertEquals("1 of 2 required approvals", byLabel.getValue("Reviews").detail)
         // "lint" is demanded by the rules but has not reported at all yet.
-        assertEquals(State.PENDING, byLabel.getValue("Checks obligatorios").state)
-        assertTrue(byLabel.getValue("Checks obligatorios").detail.contains("lint"))
-        assertEquals(State.FAIL, byLabel.getValue("Conversaciones").state)
-        assertEquals(State.OK, byLabel.getValue("Rama al día").state)
-        assertEquals(State.OK, byLabel.getValue("Conflictos").state)
-        assertEquals(State.INFO, byLabel.getValue("Historial lineal").state)
+        assertEquals(State.PENDING, byLabel.getValue("Required checks").state)
+        assertTrue(byLabel.getValue("Required checks").detail.contains("lint"))
+        assertEquals(State.FAIL, byLabel.getValue("Conversations").state)
+        assertEquals(State.OK, byLabel.getValue("Branch up to date").state)
+        assertEquals(State.OK, byLabel.getValue("Conflicts").state)
+        assertEquals(State.INFO, byLabel.getValue("Linear history").state)
         assertFalse(status.ready)
-        assertEquals("Bloqueada: no cumple los requisitos de main", status.verdict)
+        assertEquals("Blocked: does not meet the requirements of main", status.verdict)
     }
 
     @Test
@@ -66,11 +66,11 @@ class BoardAndRulesTest {
             rules,
         )
         assertTrue(status.requirements.toString(), status.ready)
-        assertEquals("Lista para fusionar", status.verdict)
+        assertEquals("Ready to merge", status.verdict)
         val byLabel = status.requirements.associateBy { it.label }
-        assertEquals("2 de 2 pasan", byLabel.getValue("Checks obligatorios").detail)
-        assertEquals(State.INFO, byLabel.getValue("Checks opcionales").state)
-        assertTrue(PullRequestHtml.mergeStatus(status).contains("Lista para fusionar"))
+        assertEquals("2 of 2 pass", byLabel.getValue("Required checks").detail)
+        assertEquals(State.INFO, byLabel.getValue("Optional checks").state)
+        assertTrue(PullRequestHtml.mergeStatus(status).contains("Ready to merge"))
     }
 
     @Test
@@ -84,11 +84,11 @@ class BoardAndRulesTest {
             rules,
         )
         assertEquals(
-            setOf("Borrador", "Reviews", "Checks obligatorios", "Rama al día", "Conflictos"),
+            setOf("Draft", "Reviews", "Required checks", "Branch up to date", "Conflicts"),
             status.failing.map { it.label }.toSet(),
         )
-        assertTrue(status.failing.first { it.label == "Reviews" }.detail.startsWith("ana pidió cambios"))
-        assertEquals("fallan: build", status.failing.first { it.label == "Checks obligatorios" }.detail)
+        assertTrue(status.failing.first { it.label == "Reviews" }.detail.startsWith("ana requested changes"))
+        assertEquals("failing: build", status.failing.first { it.label == "Required checks" }.detail)
     }
 
     @Test
@@ -98,11 +98,11 @@ class BoardAndRulesTest {
             "requiredStatusCheckContexts":["ci"],"requiresLinearHistory":false,"requiresCommitSignatures":true}}}}}}"""
         val status = GhMergeRulesResult(state(checks = "", decision = "REVIEW_REQUIRED"), "[]", protection)
         val byLabel = status.requirements.associateBy { it.label }
-        assertEquals("0 aprobaciones de 1 necesarias", byLabel.getValue("Reviews").detail)
-        assertEquals("en curso o sin empezar: ci", byLabel.getValue("Checks obligatorios").detail)
-        assertEquals(State.OK, byLabel.getValue("Conversaciones").state)
-        assertEquals(State.INFO, byLabel.getValue("Commits firmados").state)
-        assertNull(byLabel["Rama al día"])
+        assertEquals("0 of 1 required approvals", byLabel.getValue("Reviews").detail)
+        assertEquals("running or not started: ci", byLabel.getValue("Required checks").detail)
+        assertEquals(State.OK, byLabel.getValue("Conversations").state)
+        assertEquals(State.INFO, byLabel.getValue("Signed commits").state)
+        assertNull(byLabel["Branch up to date"])
     }
 
     @Test
@@ -113,12 +113,12 @@ class BoardAndRulesTest {
             "commits":{"nodes":[{"commit":{"statusCheckRollup":null}}]}}}}}"""
         val status = GhMergeRulesResult(json, null, null)
         val byLabel = status.requirements.associateBy { it.label }
-        assertEquals("Con conflictos", status.verdict)
+        assertEquals("Has conflicts", status.verdict)
         assertEquals(State.INFO, byLabel.getValue("Reviews").state)
-        assertEquals("ninguno", byLabel.getValue("Checks obligatorios").detail)
-        assertEquals(State.INFO, byLabel.getValue("Conversaciones").state)
-        assertEquals(State.FAIL, byLabel.getValue("Conflictos").state)
-        assertEquals(State.INFO, byLabel.getValue("Reglas de la rama").state)
+        assertEquals("none", byLabel.getValue("Required checks").detail)
+        assertEquals(State.INFO, byLabel.getValue("Conversations").state)
+        assertEquals(State.FAIL, byLabel.getValue("Conflicts").state)
+        assertEquals(State.INFO, byLabel.getValue("Branch rules").state)
         assertEquals("main", GhMergeRules.baseBranch(json))
         assertEquals(listOf("api", "repos/{owner}/{repo}/rules/branches/release/1.0"), GhMergeRules.rules("release/1.0"))
     }

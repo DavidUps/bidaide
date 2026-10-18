@@ -329,8 +329,8 @@ class AvatarsTest {
         assertEquals(listOf("octocat", "alice", "bob"), panel.chips.map { it.login })
         assertTrue(panel.chips.none { it.hasAvatarImage })
         assertTrue(panel.chips[0].text.contains("octocat"))
-        assertTrue(panel.chips[1].text.contains("aprobó"))
-        assertTrue(panel.chips[2].text.contains("pendiente"))
+        assertTrue(panel.chips[1].text.contains("approved"))
+        assertTrue(panel.chips[2].text.contains("pending"))
         assertTrue(downloads.isEmpty())
 
         // Avatars arrive: octocat and alice have one, bob has none.

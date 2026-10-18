@@ -1,5 +1,6 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.settings.BidaideConfigurable
 import com.intellij.execution.configurations.GeneralCommandLine
@@ -13,7 +14,7 @@ import com.intellij.openapi.project.Project
 import java.io.File
 
 open class GhException(message: String) : Exception(message)
-class GhNotInstalledException : GhException("GitHub CLI (gh) no está instalado o no se encuentra.")
+class GhNotInstalledException : GhException(BidaideBundle.message("gh.cli.notInstalled"))
 class GhNotAuthenticatedException(details: String) : GhException(details)
 
 /** Runs the GitHub CLI. Authentication is whatever `gh auth login` left on this machine; no tokens are handled here. */
@@ -41,9 +42,9 @@ object GhCli {
         workDir?.let(commandLine::withWorkDirectory)
         LOG.debug("gh " + args.joinToString(" "))
         val output = CapturingProcessHandler(commandLine).runProcess(timeoutMillis)
-        if (output.isTimeout) throw GhException("gh ${args.firstOrNull().orEmpty()} agotó el tiempo de espera")
+        if (output.isTimeout) throw GhException(BidaideBundle.message("gh.cli.timeout", args.firstOrNull().orEmpty()))
         if (output.exitCode != 0) {
-            val message = output.stderr.trim().ifEmpty { output.stdout.trim() }.ifEmpty { "gh terminó con código ${output.exitCode}" }
+            val message = output.stderr.trim().ifEmpty { output.stdout.trim() }.ifEmpty { BidaideBundle.message("gh.cli.exitCode", output.exitCode) }
             throw if (isAuthError(message)) GhNotAuthenticatedException(message) else GhException(message)
         }
         return output.stdout
@@ -84,15 +85,15 @@ object GhCli {
     fun report(project: Project, title: String, error: Throwable) {
         when (error) {
             is GhNotInstalledException -> Notifier.error(
-                project, "GitHub CLI no encontrado",
-                "Instálalo con <code>brew install gh</code> y después ejecuta <code>gh auth login</code>.",
-                NotificationAction.createSimple("Configurar ruta...") {
+                project, BidaideBundle.message("gh.cli.notFound.title"),
+                BidaideBundle.message("gh.cli.notFound.content"),
+                NotificationAction.createSimple(BidaideBundle.message("gh.cli.configurePath")) {
                     ShowSettingsUtil.getInstance().showSettingsDialog(project, BidaideConfigurable::class.java)
                 },
             )
             is GhNotAuthenticatedException -> Notifier.error(
-                project, "GitHub CLI sin sesión",
-                "Ejecuta <code>gh auth login</code> en una terminal.<br>${error.message.orEmpty()}",
+                project, BidaideBundle.message("gh.cli.notAuthenticated.title"),
+                BidaideBundle.message("gh.cli.notAuthenticated.content", error.message.orEmpty()),
             )
             is GhException -> Notifier.error(project, title, error.message.orEmpty())
             else -> {

@@ -1,7 +1,9 @@
 package com.bidaide.gh
 
+import com.bidaide.BidaideBundle
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.util.function.Supplier
 
 // Review threads live behind GraphQL only: REST has no notion of resolved threads, pending reviews or reactions.
 
@@ -50,8 +52,11 @@ class GhReviewState(
     val threads: List<GhReviewThread>,
 )
 
-enum class ReviewEvent(val label: String) {
-    COMMENT("Comentar"), APPROVE("Aprobar"), REQUEST_CHANGES("Pedir cambios")
+enum class ReviewEvent(private val text: Supplier<String>) {
+    COMMENT(BidaideBundle.lazyMessage("gh.review.comment")), APPROVE(BidaideBundle.lazyMessage("gh.review.approve")),
+    REQUEST_CHANGES(BidaideBundle.lazyMessage("gh.review.requestChanges"));
+
+    val label: String get() = text.get()
 }
 
 enum class ReactionContent(val emoji: String) {
