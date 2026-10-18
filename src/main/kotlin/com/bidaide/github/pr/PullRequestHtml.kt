@@ -10,8 +10,8 @@ import com.bidaide.github.ui.Markdown
 
 object PullRequestHtml {
     /**
-     * The body of the preview. Title, state, branches and people are drawn above it by [PullRequestHeader], so this
-     * starts at what needs reading: can it be merged, what it says, what happened, what it touches.
+     * The body of the preview. Title, state, branches, people and checks are drawn above it by [PullRequestHeader], so
+     * this starts at what needs reading: can it be merged, what it says, what happened, what it touches.
      */
     fun render(pr: GhPullRequest): String = buildString {
         val meta = listOfNotNull(
@@ -26,15 +26,6 @@ object PullRequestHtml {
         append(Html.heading(BidaideBundle.message("github.html.description")))
         append(Markdown.toHtml(pr.body).ifEmpty { "<p><font color=\"gray\"><i>${esc(BidaideBundle.message("github.html.noDescription"))}</i></font></p>" })
 
-        append(Html.section(BidaideBundle.message("github.html.checks"), pr.statusCheckRollup.orEmpty().joinToString("") { check ->
-            val (symbol, color) = when {
-                check.passed -> "✓" to "#3fb950"
-                check.failed -> "✗" to "#f85149"
-                else -> "…" to "#b08800"
-            }
-            "<div><font color=\"$color\"><b>$symbol</b></font> ${Html.link(check.url, check.displayName)} " +
-                "<font color=\"gray\"><small>${esc(check.result.lowercase())}</small></font></div>"
-        }))
         val timeline = pr.timeline
         if (timeline != null) {
             append(Html.section(BidaideBundle.message("github.html.activity"), Html.timeline(timeline)))

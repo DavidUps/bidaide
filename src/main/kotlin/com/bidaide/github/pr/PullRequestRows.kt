@@ -86,7 +86,10 @@ object PullRequestRows {
     }
 }
 
-/** Title, state and people of a pull request, above its description: the part that should be readable at once. */
+/**
+ * Title, state, people and checks of a pull request, above its description: the part that should be readable at once.
+ * The checks are components rather than HTML so that the running ones can show a live spinner.
+ */
 class PullRequestHeader(pr: GhPullRequest, people: JComponent?) : JPanel() {
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -107,7 +110,8 @@ class PullRequestHeader(pr: GhPullRequest, people: JComponent?) : JPanel() {
             foreground = UIUtil.getContextHelpForeground()
             border = JBUI.Borders.empty(6, 8, 2, 0)
         }
-        for (part in listOfNotNull(title, line, summary, people)) {
+        val checks = pr.checks.takeIf { it.isNotEmpty() }?.let(::PullRequestChecks)
+        for (part in listOfNotNull(title, line, summary, people, checks)) {
             part.alignmentX = Component.LEFT_ALIGNMENT
             add(part)
         }

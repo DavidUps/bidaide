@@ -10,6 +10,7 @@ import com.bidaide.gh.GhPullRequest
 import com.bidaide.github.actions.IssueDrafts
 import com.bidaide.github.current.PrStatusWidget
 import com.bidaide.github.current.PrWatch
+import com.bidaide.github.pr.PullRequestChecks
 import com.bidaide.github.pr.PullRequestGit
 import com.bidaide.github.runs.CiPathFilter
 import com.bidaide.github.runs.WorkflowDispatch
@@ -149,6 +150,14 @@ class FeaturesTest {
         assertSame(AnimatedIcon.Default.INSTANCE, PrStatusWidget.icon(pr(3, null, failed, running)))
         assertSame(AllIcons.Vcs.Vendors.Github, PrStatusWidget.icon(pr(4, null, passed)))
         assertSame(AllIcons.Vcs.Vendors.Github, PrStatusWidget.icon(pr(5, null, running).copy(state = "CLOSED")))
+    }
+
+    @Test
+    fun `pull request checks spin while they run`() {
+        assertSame(AnimatedIcon.Default.INSTANCE, PullRequestChecks.iconOf(running))
+        assertSame(AllIcons.RunConfigurations.TestPassed, PullRequestChecks.iconOf(passed))
+        assertSame(AllIcons.RunConfigurations.TestFailed, PullRequestChecks.iconOf(failed))
+        assertSame(AllIcons.RunConfigurations.TestIgnored, PullRequestChecks.iconOf(GhCheck(name = "docs", status = "COMPLETED", conclusion = "SKIPPED")))
     }
 
     @Test
