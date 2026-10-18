@@ -1,6 +1,7 @@
 package com.bidaide.github.pr
 
 import com.bidaide.AndroidBridge
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -23,7 +24,7 @@ object PullRequestActions {
 
     fun checkout(project: Project, pr: GhPullRequest, then: () -> Unit = {}) {
         GhCli.async(
-            project, "Checkout de PR #${pr.number}",
+            project, BidaideBundle.message("github.pr.checkout.task", pr.number),
             work = {
                 GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.prCheckout(pr.number))
                 GhRepoContext.repository(project)?.let {
@@ -32,7 +33,7 @@ object PullRequestActions {
                 }
             },
         ) {
-            Notifier.info(project, "GitHub", "Rama ${pr.headRefName} (PR #${pr.number}) lista en local")
+            Notifier.info(project, "GitHub", BidaideBundle.message("github.pr.checkout.done", pr.headRefName, pr.number))
             then()
         }
     }
@@ -47,7 +48,7 @@ object PullRequestActions {
         val properties = PropertiesComponent.getInstance(project)
         val hasLocalChanges = ChangeListManager.getInstance(project).allChanges.isNotEmpty()
         JBPopupFactory.getInstance().createPopupChooserBuilder(PrTestMode.entries)
-            .setTitle("Probar PR #${pr.number} en dispositivo")
+            .setTitle(BidaideBundle.message("github.pr.test.title", pr.number))
             .setRenderer(SimpleListCellRenderer.create("") { it.label(hasLocalChanges) })
             .setSelectedValue(PrTestMode.parse(properties.getValue(TEST_MODE_KEY)), true)
             .setItemChosenCallback { mode ->
@@ -66,20 +67,20 @@ object PullRequestActions {
     private fun confirmCheckoutWithChanges(project: Project): Boolean =
         Messages.showOkCancelDialog(
             project,
-            "Tienes cambios sin commit. El checkout cambia de rama en tu copia: git se negará si chocan con la PR, " +
-                "y si no, tus cambios viajarán a la rama de la PR. Para no tocar nada, usa «En un worktree aparte».",
-            "Checkout en tu copia", "Hacer checkout", "Cancelar", Messages.getWarningIcon(),
+            BidaideBundle.message("github.pr.test.uncommitted"),
+            BidaideBundle.message("github.pr.test.checkoutMode"), BidaideBundle.message("github.pr.test.doCheckout"),
+            BidaideBundle.message("common.cancel"), Messages.getWarningIcon(),
         ) == Messages.OK
 
     /** Checks the PR out and launches the selected run configuration: build, install and start on the chosen device. */
     fun checkoutAndRun(project: Project, pr: GhPullRequest) {
         val settings = RunManager.getInstance(project).selectedConfiguration
         if (settings == null) {
-            GhCli.report(project, "Probar PR #${pr.number}", GhException("No hay ninguna run configuration seleccionada."))
+            GhCli.report(project, BidaideBundle.message("github.pr.test.task", pr.number), GhException(BidaideBundle.message("github.pr.test.noConfiguration")))
             return
         }
         checkout(project, pr) {
-            Notifier.info(project, "PR #${pr.number}", "Lanzando «${settings.name}» con el código de la PR")
+            Notifier.info(project, "PR #${pr.number}", BidaideBundle.message("github.pr.test.launching", settings.name))
             ProgramRunnerUtil.executeConfiguration(settings, DefaultRunExecutor.getRunExecutorInstance())
         }
     }

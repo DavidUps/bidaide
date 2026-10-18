@@ -1,5 +1,6 @@
 package com.bidaide.github.issues
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhIssue
 import com.bidaide.gh.GitHubUser
 import com.bidaide.gh.display
@@ -29,9 +30,9 @@ object IssueRows {
 
     /** GitHub paints "completed" purple and "not planned" grey; both are closed. */
     fun state(issue: GhIssue): State = when {
-        issue.isOpen -> State("Abierta", Tones.GREEN)
-        issue.stateReason.equals("NOT_PLANNED", ignoreCase = true) -> State("Descartada", Tones.GRAY)
-        else -> State("Cerrada", Tones.PURPLE)
+        issue.isOpen -> State(BidaideBundle.message("github.pr.state.open"), Tones.GREEN)
+        issue.stateReason.equals("NOT_PLANNED", ignoreCase = true) -> State(BidaideBundle.message("github.issue.state.notPlanned"), Tones.GRAY)
+        else -> State(BidaideBundle.message("github.pr.state.closed"), Tones.PURPLE)
     }
 
     fun row(issue: GhIssue, now: Instant = Instant.now()): RichRow {
@@ -40,7 +41,7 @@ object IssueRows {
             title = issue.title,
             icon = if (issue.isOpen) AllIcons.General.TodoDefault else AllIcons.Actions.Checked,
             subtitle = buildString {
-                append("#${issue.number} · ${issue.author.display()} la abrió ${TimeAgo.format(issue.createdAt, now)}")
+                append("#${issue.number} · " + BidaideBundle.message("github.issue.row.opened", issue.author.display(), TimeAgo.format(issue.createdAt, now)))
                 issue.milestone?.title?.let { append(" · $it") }
             },
             labels = issue.labels.orEmpty().map { RichRow.Tag(it.name, Tones.ofLabel(it.color)) },
@@ -53,8 +54,9 @@ object IssueRows {
 
     fun summary(issue: GhIssue, now: Instant = Instant.now()): String {
         val comments = issue.comments.orEmpty().size
-        return "<html><b>${Html.esc(issue.author.display())}</b> abrió esta issue ${TimeAgo.format(issue.createdAt, now)}" +
-            (if (comments > 0) " · $comments ${if (comments == 1) "comentario" else "comentarios"}" else "") +
+        val opened = BidaideBundle.message("github.issue.summary.opened", "<b>${Html.esc(issue.author.display())}</b>", TimeAgo.format(issue.createdAt, now))
+        return "<html>$opened" +
+            (if (comments > 0) " · " + if (comments == 1) BidaideBundle.message("github.issue.summary.comment") else BidaideBundle.message("github.issue.summary.comments", comments) else "") +
             (issue.milestone?.title?.let { " · milestone <b>${Html.esc(it)}</b>" }.orEmpty()) + "</html>"
     }
 }
@@ -85,13 +87,13 @@ class IssueHeader(issue: GhIssue) : JPanel() {
         val people = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
             isOpaque = false
             issue.author?.login?.let {
-                add(caption("Autor"))
+                add(caption(BidaideBundle.message("github.pr.people.author")))
                 add(chip(it))
             }
             val assignees = issue.assignees.orEmpty().mapNotNull { it.login }
             if (assignees.isNotEmpty()) {
                 add(Box.createHorizontalStrut(12))
-                add(caption("Asignada a"))
+                add(caption(BidaideBundle.message("github.issue.people.assignees")))
                 assignees.forEach { add(chip(it)) }
             }
         }

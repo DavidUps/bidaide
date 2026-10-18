@@ -1,5 +1,6 @@
 package com.bidaide.github.issues
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -38,6 +39,7 @@ import javax.swing.JComponent
 
 class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
     project, "issue",
+    createText = BidaideBundle.message("github.issue.new"),
     filters = listOf(StateFilter.OPEN, StateFilter.CLOSED, StateFilter.ALL).map { FilterOption(it.label, it.name) },
     scopes = GhCommands.ISSUE_SCOPES.map { FilterOption(it.first, it.second) },
 ) {
@@ -64,7 +66,7 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
         onOpen = { card -> (card.payload as? GhIssue)?.let { BrowserUtil.browse(it.url) } },
         onMove = { card, from, to ->
             val number = card.id.toInt()
-            runAndReload("Moviendo issue #$number", IssueBoard.moveCommand(number, groupBy, from, to), IssueBoard.moveDescription(number, groupBy, to))
+            runAndReload(BidaideBundle.message("github.issue.moving", number), IssueBoard.moveCommand(number, groupBy, from, to), IssueBoard.moveDescription(number, groupBy, to))
         },
     )
 
@@ -75,7 +77,10 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
     }
 
     override fun extraActions(): List<AnAction> = listOf(
-        object : ToggleAction("Ver como tablero", "Columnas de tarjetas que se arrastran, como en GitHub Projects", AllIcons.Actions.SplitVertically), DumbAware {
+        object : ToggleAction(
+            BidaideBundle.message("github.issue.board"), BidaideBundle.message("github.issue.board.description"),
+            AllIcons.Actions.SplitVertically,
+        ), DumbAware {
             override fun getActionUpdateThread() = ActionUpdateThread.EDT
             override fun isSelected(e: AnActionEvent) = boardMode
             override fun setSelected(e: AnActionEvent, state: Boolean) {
@@ -85,7 +90,7 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
                 if (state) refreshBoard()
             }
         },
-        object : DumbAwareAction("Agrupar tablero por...", null, AllIcons.Actions.GroupBy) {
+        object : DumbAwareAction(BidaideBundle.message("github.issue.groupBy"), null, AllIcons.Actions.GroupBy) {
             override fun getActionUpdateThread() = ActionUpdateThread.EDT
             override fun update(e: AnActionEvent) {
                 e.presentation.isEnabled = boardMode
@@ -93,7 +98,7 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
 
             override fun actionPerformed(e: AnActionEvent) {
                 JBPopupFactory.getInstance().createPopupChooserBuilder(IssueBoard.GroupBy.entries)
-                    .setTitle("Columnas del tablero")
+                    .setTitle(BidaideBundle.message("github.issue.groupBy.title"))
                     .setItemChosenCallback {
                         groupBy = it
                         properties.setValue(GROUP_KEY, it.name)
@@ -121,7 +126,7 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
 
     private fun refreshBoard() {
         val known = if (groupBy == IssueBoard.GroupBy.MILESTONE) milestones else emptyList()
-        board.show(IssueBoard.columns(issues, groupBy, known), "Sin issues con este filtro")
+        board.show(IssueBoard.columns(issues, groupBy, known), BidaideBundle.message("github.issue.board.empty"))
     }
 
     override fun fetchDetail(workDir: File, item: GhIssue): GhIssue {
@@ -149,40 +154,45 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
     override fun detailHtml(item: GhIssue): String = buildString {
         val linked = item.closedByPullRequestsReferences.orEmpty()
         val meta = listOfNotNull(
-            linked.takeIf { it.isNotEmpty() }?.let { prs -> "La cierra " + prs.joinToString(", ") { Html.link(it.url, "PR #${it.number}") } },
-            Html.link(item.url, "Ver en GitHub"),
+            linked.takeIf { it.isNotEmpty() }?.let { prs ->
+                BidaideBundle.message("github.issue.closedBy", prs.joinToString(", ") { Html.link(it.url, "PR #${it.number}") })
+            },
+            Html.link(item.url, BidaideBundle.message("github.html.viewOnGitHub")),
         )
         append("<p><font color=\"gray\">${meta.joinToString(" &nbsp;·&nbsp; ")}</font></p>")
-        append(Html.heading("Descripción"))
-        append(Markdown.toHtml(item.body).ifEmpty { "<p><font color=\"gray\"><i>Sin descripción.</i></font></p>" })
+        append(Html.heading(BidaideBundle.message("github.html.description")))
+        append(Markdown.toHtml(item.body).ifEmpty { "<p><font color=\"gray\"><i>${Html.esc(BidaideBundle.message("github.html.noDescription"))}</i></font></p>" })
         val timeline = item.timeline
-        append(if (timeline != null) Html.section("Actividad", Html.timeline(timeline)) else Html.section("Comentarios", Html.comments(item.comments)))
+        append(if (timeline != null) Html.section(BidaideBundle.message("github.html.activity"), Html.timeline(timeline)) else Html.section(BidaideBundle.message("github.html.comments"), Html.comments(item.comments)))
     }
 
     override fun detailButtons(item: GhIssue): List<JButton> = buildList {
         val n = item.number
-        add(button("Comentar") {
-            val dialog = TextPromptDialog(project, "Comentar issue #$n", "Comentar", required = true)
-            if (dialog.showAndGet()) runAndReload("Comentando issue #$n", GhCommands.issueComment(n, dialog.text), "Comentario añadido a #$n")
+        add(button(BidaideBundle.message("github.pr.button.comment")) {
+            val dialog = TextPromptDialog(project, BidaideBundle.message("github.issue.comment.title", n), BidaideBundle.message("github.pr.button.comment"), required = true)
+            if (dialog.showAndGet()) runAndReload(
+                    BidaideBundle.message("github.issue.comment.task", n), GhCommands.issueComment(n, dialog.text),
+                    BidaideBundle.message("github.issue.comment.done", n),
+                )
         })
-        if (item.isOpen) add(button("Crear rama") { develop(item) })
-        add(button("Editar...") {
+        if (item.isOpen) add(button(BidaideBundle.message("github.issue.button.develop")) { develop(item) })
+        add(button(BidaideBundle.message("github.pr.button.edit")) {
             MetadataEditor.edit(project, "issue", n, item.labels, item.assignees, item.milestone?.title) { command ->
-                runAndReload("Editando issue #$n", command, "Issue #$n actualizada")
+                runAndReload(BidaideBundle.message("github.issue.edit.task", n), command, BidaideBundle.message("github.issue.edit.done", n))
             }
         })
         if (item.isOpen) {
-            add(button("Cerrar") { runAndReload("Cerrando issue #$n", GhCommands.issueSetOpen(n, false), "Issue #$n cerrada") })
+            add(button(BidaideBundle.message("github.pr.button.close")) { runAndReload(BidaideBundle.message("github.issue.close.task", n), GhCommands.issueSetOpen(n, false), BidaideBundle.message("github.issue.close.done", n)) })
         } else {
-            add(button("Reabrir") { runAndReload("Reabriendo issue #$n", GhCommands.issueSetOpen(n, true), "Issue #$n reabierta") })
+            add(button(BidaideBundle.message("github.pr.button.reopen")) { runAndReload(BidaideBundle.message("github.issue.reopen.task", n), GhCommands.issueSetOpen(n, true), BidaideBundle.message("github.issue.reopen.done", n)) })
         }
-        add(button("Abrir en navegador") { BrowserUtil.browse(item.url) })
+        add(button(BidaideBundle.message("github.pr.button.browse")) { BrowserUtil.browse(item.url) })
     }
 
     /** Creates a branch linked to the issue on GitHub and checks it out locally. */
     private fun develop(issue: GhIssue) {
         GhCli.async(
-            project, "Creando rama para issue #${issue.number}",
+            project, BidaideBundle.message("github.issue.develop.task", issue.number),
             work = {
                 GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.issueDevelop(issue.number))
                 GhRepoContext.repository(project)?.let {
@@ -192,7 +202,7 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
                 }
             },
         ) { branch ->
-            Notifier.info(project, "GitHub", "Rama «${branch ?: "nueva"}» creada y enlazada a la issue #${issue.number}")
+            Notifier.info(project, "GitHub", BidaideBundle.message("github.issue.develop.done", branch ?: BidaideBundle.message("github.issue.develop.newBranch"), issue.number))
         }
     }
 
@@ -204,14 +214,14 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
 
         /** Shows the "new issue" form, optionally prefilled, and creates the issue. */
         fun create(project: Project, title: String, body: String, onCreated: () -> Unit = {}) {
-            val dialog = TitleBodyDialog(project, "Nueva issue", "Crear", title, body).apply { build() }
+            val dialog = TitleBodyDialog(project, BidaideBundle.message("github.issue.create.title"), BidaideBundle.message("github.pr.create.ok"), title, body).apply { build() }
             if (!dialog.showAndGet()) return
             GhCli.async(
-                project, "Creando issue",
+                project, BidaideBundle.message("github.issue.create.creating"),
                 work = { GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.issueCreate(dialog.itemTitle, dialog.body)).trim() },
             ) { output ->
                 val url = output.lines().lastOrNull().orEmpty()
-                Notifier.info(project, "Issue creada", Html.link(url, url))
+                Notifier.info(project, BidaideBundle.message("github.issue.create.done"), Html.link(url, url))
                 onCreated()
             }
         }

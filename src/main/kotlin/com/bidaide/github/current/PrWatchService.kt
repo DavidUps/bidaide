@@ -1,5 +1,6 @@
 package com.bidaide.github.current
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhJson
@@ -28,7 +29,7 @@ object PrWatch {
     /** New review requests. A null [previous] is the first poll, which only records what is already there. */
     fun newReviewRequests(previous: Set<Int>?, current: List<Snapshot>): List<Event> =
         if (previous == null) emptyList() else current.filter { it.number !in previous }
-            .map { Event(it.number, "Te piden review: #${it.number} ${it.title}") }
+            .map { Event(it.number, BidaideBundle.message("github.watch.reviewRequested", it.number, it.title)) }
 
     /** Review verdicts and check results of the user's own PRs that are new since [previous]. */
     fun ownPrChanges(previous: Map<Int, Snapshot>?, current: List<Snapshot>): List<Event> {
@@ -38,12 +39,12 @@ object PrWatch {
             val before = previous[now.number] ?: continue
             if (now.reviewDecision != before.reviewDecision) {
                 when (now.reviewDecision) {
-                    "APPROVED" -> events += Event(now.number, "Aprobada: #${now.number} ${now.title}")
-                    "CHANGES_REQUESTED" -> events += Event(now.number, "Piden cambios en #${now.number} ${now.title}")
+                    "APPROVED" -> events += Event(now.number, BidaideBundle.message("github.watch.approved", now.number, now.title))
+                    "CHANGES_REQUESTED" -> events += Event(now.number, BidaideBundle.message("github.watch.changesRequested", now.number, now.title))
                 }
             }
-            if (now.checksFailed && !before.checksFailed) events += Event(now.number, "Checks fallan en #${now.number} ${now.title}")
-            if (now.checksPassed && !before.checksPassed) events += Event(now.number, "Checks en verde en #${now.number} ${now.title}")
+            if (now.checksFailed && !before.checksFailed) events += Event(now.number, BidaideBundle.message("github.watch.checksFailed", now.number, now.title))
+            if (now.checksPassed && !before.checksPassed) events += Event(now.number, BidaideBundle.message("github.watch.checksPassed", now.number, now.title))
         }
         return events
     }
@@ -101,7 +102,7 @@ class PrWatchService(private val project: Project) : Disposable {
         val pr = known[event.number]
         val notification = NotificationGroupManager.getInstance().getNotificationGroup("Bidaide")
             .createNotification("GitHub", event.message, NotificationType.INFORMATION)
-        if (pr != null) notification.addAction(NotificationAction.createSimpleExpiring("Revisar") { PrReviewDiff.open(project, pr) })
+        if (pr != null) notification.addAction(NotificationAction.createSimpleExpiring(BidaideBundle.message("github.watch.review")) { PrReviewDiff.open(project, pr) })
         notification.notify(project)
     }
 

@@ -21,15 +21,15 @@ class RedesignTest {
 
     @Test
     fun `times read like on github`() {
-        assertEquals("ahora", ago("2026-10-13T09:59:40Z"))
-        assertEquals("hace 8 min", ago("2026-10-13T09:52:00Z"))
-        assertEquals("hace 3 h", ago("2026-10-13T06:10:00Z"))
-        assertEquals("ayer", ago("2026-10-12T08:00:00Z"))
-        assertEquals("hace 14 días", ago("2026-09-29T09:00:00Z"))
-        assertEquals("el 28 ago", ago("2026-08-28T09:00:00Z"))
-        assertEquals("el 3 dic 2025", ago("2025-12-03T09:00:00Z"))
-        // Clock skew between this machine and GitHub must not produce "hace -1 min".
-        assertEquals("ahora", ago("2026-10-13T10:00:30Z"))
+        assertEquals("now", ago("2026-10-13T09:59:40Z"))
+        assertEquals("8 min ago", ago("2026-10-13T09:52:00Z"))
+        assertEquals("3 h ago", ago("2026-10-13T06:10:00Z"))
+        assertEquals("yesterday", ago("2026-10-12T08:00:00Z"))
+        assertEquals("14 days ago", ago("2026-09-29T09:00:00Z"))
+        assertEquals("on Aug 28", ago("2026-08-28T09:00:00Z"))
+        assertEquals("on Dec 3, 2025", ago("2025-12-03T09:00:00Z"))
+        // Clock skew between this machine and GitHub must not produce "-1 min ago".
+        assertEquals("now", ago("2026-10-13T10:00:30Z"))
         assertEquals("", ago(null))
         assertEquals("", ago("not a date"))
     }
@@ -44,13 +44,13 @@ class RedesignTest {
         ).single()
         val row = PullRequestRows.row(pr, now)
         assertEquals("Clear the findings", row.title)
-        assertEquals("#5 · abierta hace 20 min por DavidUps · fix/report → main", row.subtitle)
+        assertEquals("#5 · opened 20 min ago by DavidUps · fix/report → main", row.subtitle)
         assertEquals(listOf("bug"), row.labels.map { it.text })
         assertEquals(Color(0xd73a4a), row.labels.single().tone)
-        assertEquals(listOf("Falta review", "✗ checks"), row.badges.map { it.text })
+        assertEquals(listOf("Review required", "✗ checks"), row.badges.map { it.text })
         assertEquals(listOf("ana", "luis"), row.people.map { it.login })
-        assertEquals("hace 8 min", row.time)
-        assertEquals("Abierta", PullRequestRows.state(pr).label)
+        assertEquals("8 min ago", row.time)
+        assertEquals("Open", PullRequestRows.state(pr).label)
     }
 
     @Test
@@ -61,15 +61,15 @@ class RedesignTest {
                  "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"SUCCESS"}]},
                 {"number":3,"title":"old gh","state":"CLOSED"}]"""
         )
-        assertTrue(PullRequestRows.row(draft, now).subtitle.startsWith("#1 · borrador, abierta"))
+        assertTrue(PullRequestRows.row(draft, now).subtitle.startsWith("#1 · draft, opened"))
         // Nobody assigned: the author stands in, so there is always a face.
         assertEquals(listOf("ana"), PullRequestRows.row(draft, now).people.map { it.login })
-        assertEquals("Borrador", PullRequestRows.state(draft).label)
-        assertEquals("Fusionada", PullRequestRows.state(merged).label)
-        assertEquals(listOf("Aprobada", "✓ checks"), PullRequestRows.row(merged, now).badges.map { it.text })
+        assertEquals("Draft", PullRequestRows.state(draft).label)
+        assertEquals("Merged", PullRequestRows.state(merged).label)
+        assertEquals(listOf("Approved", "✓ checks"), PullRequestRows.row(merged, now).badges.map { it.text })
         assertTrue(PullRequestRows.row(merged, now).people.isEmpty())
-        assertTrue(PullRequestRows.summary(merged, now).contains("fusionó"))
-        assertEquals("Cerrada", PullRequestRows.state(bare).label)
+        assertTrue(PullRequestRows.summary(merged, now).contains("merged"))
+        assertEquals("Closed", PullRequestRows.state(bare).label)
         assertTrue(PullRequestRows.row(bare, now).badges.isEmpty())
         assertEquals(Tones.GRAY, Tones.ofLabel(null))
         assertEquals(Tones.GRAY, Tones.ofLabel("nope"))

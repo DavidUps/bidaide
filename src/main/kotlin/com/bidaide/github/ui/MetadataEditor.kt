@@ -1,5 +1,6 @@
 package com.bidaide.github.ui
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhLabel
@@ -16,14 +17,14 @@ object MetadataEditor {
         onCommand: (List<String>) -> Unit,
     ) {
         GhCli.async(
-            project, "Cargando labels y milestones",
+            project, BidaideBundle.message("github.metadata.loading"),
             work = {
                 val workDir = GhRepoContext.requireWorkDir(project)
                 lines(GhCli.run(workDir, GhCommands.labelList())) to lines(GhCli.run(workDir, GhCommands.milestoneList()))
             },
         ) { (allLabels, milestones) ->
             val dialog = EditMetadataDialog(
-                project, "Editar ${if (kind == "pr") "PR" else "issue"} #$number", allLabels,
+                project, if (kind == "pr") BidaideBundle.message("github.metadata.editPr", number) else BidaideBundle.message("github.metadata.editIssue", number), allLabels,
                 labels.orEmpty().map { it.name }.toSet(), assignees.orEmpty().mapNotNull { it.login }.toSet(),
                 milestones, milestone, withReviewers = kind == "pr",
             )

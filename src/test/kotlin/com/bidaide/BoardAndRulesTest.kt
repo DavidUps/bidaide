@@ -134,21 +134,21 @@ class BoardAndRulesTest {
     @Test
     fun `issues are grouped into columns`() {
         val byLabel = IssueBoard.columns(issues, GroupBy.LABEL)
-        assertEquals(listOf("Sin label", "Android", "bug", "feature"), byLabel.map { it.title })
+        assertEquals(listOf("No label", "Android", "bug", "feature"), byLabel.map { it.title })
         assertEquals(listOf(listOf("3"), listOf("1"), listOf("1"), listOf("2")), byLabel.map { column -> column.cards.map { it.id } })
         assertEquals("#1 Crash al abrir", byLabel[1].cards.single().title)
         // The label is the column; the card shows who and to whom instead.
         assertEquals("ana · @david", byLabel[1].cards.single().subtitle)
 
         val byMilestone = IssueBoard.columns(issues, GroupBy.MILESTONE, known = listOf("v2", "v1"))
-        assertEquals(listOf("Sin milestone", "v1", "v2"), byMilestone.map { it.title })
+        assertEquals(listOf("No milestone", "v1", "v2"), byMilestone.map { it.title })
         assertEquals(listOf(2, 1, 0), byMilestone.map { it.cards.size })
 
         val byState = IssueBoard.columns(issues, GroupBy.STATE)
-        assertEquals(listOf("Abiertas" to 2, "Cerradas" to 1), byState.map { it.title to it.cards.size })
+        assertEquals(listOf("Open" to 2, "Closed" to 1), byState.map { it.title to it.cards.size })
 
-        assertEquals(listOf("Sin asignar", "david"), IssueBoard.columns(issues, GroupBy.ASSIGNEE).map { it.title })
-        assertEquals(listOf("Sin label"), IssueBoard.columns(emptyList(), GroupBy.LABEL).map { it.title })
+        assertEquals(listOf("Unassigned", "david"), IssueBoard.columns(issues, GroupBy.ASSIGNEE).map { it.title })
+        assertEquals(listOf("No label"), IssueBoard.columns(emptyList(), GroupBy.LABEL).map { it.title })
     }
 
     @Test
@@ -167,7 +167,7 @@ class BoardAndRulesTest {
         assertEquals(listOf("issue", "edit", "7", "--remove-milestone"), IssueBoard.moveCommand(7, GroupBy.MILESTONE, "v1", IssueBoard.NONE))
         assertEquals(listOf("issue", "close", "7"), IssueBoard.moveCommand(7, GroupBy.STATE, "OPEN", "CLOSED"))
         assertEquals(listOf("issue", "reopen", "7"), IssueBoard.moveCommand(7, GroupBy.STATE, "CLOSED", "OPEN"))
-        assertEquals("Issue #7 cerrada", IssueBoard.moveDescription(7, GroupBy.STATE, "CLOSED"))
-        assertEquals("Issue #7 → sin label", IssueBoard.moveDescription(7, GroupBy.LABEL, IssueBoard.NONE))
+        assertEquals("Issue #7 closed", IssueBoard.moveDescription(7, GroupBy.STATE, "CLOSED"))
+        assertEquals("Issue #7 → no label", IssueBoard.moveDescription(7, GroupBy.LABEL, IssueBoard.NONE))
     }
 }

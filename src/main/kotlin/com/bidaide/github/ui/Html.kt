@@ -1,5 +1,6 @@
 package com.bidaide.github.ui
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhComment
 import com.bidaide.gh.GhLabel
 import com.bidaide.gh.GhTimelineEvent
@@ -45,7 +46,7 @@ object Html {
             "<td align=\"right\" width=\"110\"><font color=\"gray\"><small>${esc(TimeAgo.format(iso))}</small></font></td></tr></table>"
 
     fun comments(comments: List<GhComment>?): String =
-        comments.orEmpty().joinToString("") { entry("<b>${esc(it.author.display())}</b> comentó", it.createdAt) + quote(it.body) }
+        comments.orEmpty().joinToString("") { entry("<b>${esc(it.author.display())}</b> ${esc(BidaideBundle.message("gh.timeline.commented"))}", it.createdAt) + quote(it.body) }
 
     /** Activity feed: comments and reviews with their text in a box, everything else as a one-line note. */
     fun timeline(events: List<GhTimelineEvent>): String = events.joinToString("") { event ->

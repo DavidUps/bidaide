@@ -1,5 +1,6 @@
 package com.bidaide.github.ui
 
+import com.bidaide.BidaideBundle
 import com.bidaide.settings.BidaideSettings
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.SimpleListCellRenderer
@@ -18,7 +19,7 @@ object SavedReplies {
         val replies = parse(BidaideSettings.getInstance().savedReplies)
         if (replies.isEmpty()) return null
         lateinit var link: ActionLink
-        link = ActionLink("Respuestas guardadas") {
+        link = ActionLink(BidaideBundle.message("settings.savedReplies.group")) {
             JBPopupFactory.getInstance().createPopupChooserBuilder(replies)
                 .setRenderer(SimpleListCellRenderer.create("") { it.name })
                 .setNamerForFiltering { it.name }

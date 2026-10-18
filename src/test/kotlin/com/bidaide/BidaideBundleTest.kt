@@ -63,15 +63,18 @@ class BidaideBundleTest {
         used += TOOL_WINDOW_IN_XML.findAll(pluginXml).map { "toolwindow.stripe.${it.groupValues[1]}" }
 
         assertEquals("used but missing", emptySet<String>(), used - base.stringPropertyNames())
+        // Some keys are chosen in a variable before the message call; any literal naming a key counts as a use.
+        val named = LITERAL.findAll(sources).map { it.groupValues[1] }.toSet()
         // Action descriptions are looked up by the platform and by BidaideActionTexts without naming the key.
-        val unused = base.stringPropertyNames() - used - "bundle.locale"
+        val unused = base.stringPropertyNames() - used - named - "bundle.locale"
         assertEquals("never used", emptySet<String>(), unused.filterNot { it.startsWith("action.") && it.endsWith(".description") }.toSet())
     }
 
     private companion object {
         val PLACEHOLDER = Regex("""\{\d+}""")
         val KEY_IN_CODE = Regex("""(?:message|lazyMessage)\(\s*"([^"]+)"""")
-        val KEY_IN_XML = Regex("""\skey="([^"]+)"""")
+        val LITERAL = Regex(""""([A-Za-z0-9_.]+)"""")
+        val KEY_IN_XML =Regex("""\skey="([^"]+)"""")
         val ACTION_IN_XML = Regex("""<action id="([^"]+)"""")
         val GROUP_IN_XML = Regex("""<group id="([^"]+)"[^>]*>""")
         val TOOL_WINDOW_IN_XML = Regex("""<toolWindow id="([^"]+)"""")

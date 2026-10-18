@@ -1,5 +1,6 @@
 package com.bidaide.github.pr
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhPrPeople
 import com.bidaide.gh.GhPullRequest
 import com.bidaide.gh.GitHubUser
@@ -27,10 +28,10 @@ object PullRequestRows {
     class State(val label: String, val tone: Color)
 
     fun state(pr: GhPullRequest): State = when {
-        pr.state.equals("MERGED", true) -> State("Fusionada", Tones.PURPLE)
-        !pr.isOpen -> State("Cerrada", Tones.RED)
-        pr.isDraft -> State("Borrador", Tones.GRAY)
-        else -> State("Abierta", Tones.GREEN)
+        pr.state.equals("MERGED", true) -> State(BidaideBundle.message("github.pr.state.merged"), Tones.PURPLE)
+        !pr.isOpen -> State(BidaideBundle.message("github.pr.state.closed"), Tones.RED)
+        pr.isDraft -> State(BidaideBundle.message("github.pr.state.draft"), Tones.GRAY)
+        else -> State(BidaideBundle.message("github.pr.state.open"), Tones.GREEN)
     }
 
     private fun icon(pr: GhPullRequest): Icon = when {
@@ -43,9 +44,9 @@ object PullRequestRows {
     /** Review and CI state, the two things that decide whether a pull request can move. */
     fun badges(pr: GhPullRequest): List<RichRow.Tag> = buildList {
         when (pr.reviewDecision) {
-            "APPROVED" -> add(RichRow.Tag("Aprobada", Tones.GREEN))
-            "CHANGES_REQUESTED" -> add(RichRow.Tag("Cambios pedidos", Tones.RED))
-            "REVIEW_REQUIRED" -> add(RichRow.Tag("Falta review", Tones.AMBER))
+            "APPROVED" -> add(RichRow.Tag(BidaideBundle.message("github.pr.badge.approved"), Tones.GREEN))
+            "CHANGES_REQUESTED" -> add(RichRow.Tag(BidaideBundle.message("github.pr.badge.changesRequested"), Tones.RED))
+            "REVIEW_REQUIRED" -> add(RichRow.Tag(BidaideBundle.message("github.pr.badge.reviewRequired"), Tones.AMBER))
         }
         when {
             pr.checksFailed -> add(RichRow.Tag("✗ checks", Tones.RED))
@@ -59,8 +60,8 @@ object PullRequestRows {
         icon = icon(pr),
         subtitle = buildString {
             append("#${pr.number} · ")
-            append(if (pr.isDraft && pr.isOpen) "borrador, " else "")
-            append("abierta ${TimeAgo.format(pr.createdAt, now)} por ${pr.author.display()}")
+            append(if (pr.isDraft && pr.isOpen) BidaideBundle.message("github.pr.row.draft") + ", " else "")
+            append(BidaideBundle.message("github.pr.row.opened", TimeAgo.format(pr.createdAt, now), pr.author.display()))
             append(" · ${pr.headRefName} → ${pr.baseRefName}")
         },
         labels = pr.labels.orEmpty().map { RichRow.Tag(it.name, Tones.ofLabel(it.color)) },
@@ -72,14 +73,16 @@ object PullRequestRows {
 
     /** The sentence GitHub puts under the title: who wants to merge what into where. */
     fun summary(pr: GhPullRequest, now: Instant = Instant.now()): String {
-        val verb = when {
-            pr.state.equals("MERGED", true) -> "fusionó"
-            !pr.isOpen -> "quería fusionar"
-            else -> "quiere fusionar"
+        val key = when {
+            pr.state.equals("MERGED", true) -> "github.pr.summary.merged"
+            !pr.isOpen -> "github.pr.summary.closed"
+            else -> "github.pr.summary.open"
         }
-        return "<html><b>${Html.esc(pr.author.display())}</b> $verb ${pr.changedFiles} archivos " +
-            "(<font color=\"#3fb950\">+${pr.additions}</font> <font color=\"#f85149\">−${pr.deletions}</font>) en " +
-            "<code>${Html.esc(pr.baseRefName)}</code> desde <code>${Html.esc(pr.headRefName)}</code> · abierta ${TimeAgo.format(pr.createdAt, now)}</html>"
+        val lines = "<font color=\"#3fb950\">+${pr.additions}</font> <font color=\"#f85149\">−${pr.deletions}</font>"
+        return "<html>" + BidaideBundle.message(
+            key, "<b>${Html.esc(pr.author.display())}</b>", pr.changedFiles, lines, "<code>${Html.esc(pr.baseRefName)}</code>",
+            "<code>${Html.esc(pr.headRefName)}</code>", TimeAgo.format(pr.createdAt, now),
+        ) + "</html>"
     }
 }
 

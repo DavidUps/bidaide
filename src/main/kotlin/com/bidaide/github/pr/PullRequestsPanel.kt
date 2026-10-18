@@ -1,6 +1,7 @@
 package com.bidaide.github.pr
 
 import com.bidaide.AndroidBridge
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -38,6 +39,7 @@ import javax.swing.JComponent
 
 class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
     project, "pull request",
+    createText = BidaideBundle.message("github.pr.new"),
     filters = StateFilter.entries.map { FilterOption(it.label, it.name) },
     scopes = GhCommands.PR_SCOPES.map { FilterOption(it.first, it.second) },
 ) {
@@ -86,49 +88,49 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
         return PullRequestHeader(item, strip)
     }
 
-    /** The first four stay visible (the first one highlighted); the rest live under "Más". */
+    /** The first four stay visible (the first one highlighted); the rest live under "More". */
     override fun detailButtons(item: GhPullRequest): List<JButton> = buildList {
         val n = item.number
-        add(button("Revisar cambios") { PrReviewDiff.open(project, item) })
-        add(button("Checkout") { PullRequestActions.checkout(project, item) })
+        add(button(BidaideBundle.message("github.pr.button.review")) { PrReviewDiff.open(project, item) })
+        add(button(BidaideBundle.message("github.pr.button.checkout")) { PullRequestActions.checkout(project, item) })
         if (item.isOpen) {
-            add(button("Aprobar") { review(item, ReviewKind.APPROVE) })
-            add(button("Merge...") { merge(item) })
-            add(button("Pedir cambios") { review(item, ReviewKind.REQUEST_CHANGES) })
-            add(button("Comentar") { comment(item) })
+            add(button(BidaideBundle.message("github.pr.button.approve")) { review(item, ReviewKind.APPROVE) })
+            add(button(BidaideBundle.message("github.pr.button.merge")) { merge(item) })
+            add(button(BidaideBundle.message("github.pr.button.requestChanges")) { review(item, ReviewKind.REQUEST_CHANGES) })
+            add(button(BidaideBundle.message("github.pr.button.comment")) { comment(item) })
         }
         // Building, installing and starting the app need Android Studio (see AndroidBridge).
         if (AndroidBridge.isAvailable) {
-            add(button("Probar en dispositivo") { PullRequestActions.testOnDevice(project, item) })
-            add(button("APK del CI") { CiArtifacts.forBranch(project, item.headRefName) })
+            add(button(BidaideBundle.message("github.pr.button.testOnDevice")) { PullRequestActions.testOnDevice(project, item) })
+            add(button(BidaideBundle.message("github.pr.button.ciApk")) { CiArtifacts.forBranch(project, item.headRefName) })
         }
         if (item.isOpen) {
             if (item.isDraft) {
-                add(button("Marcar lista") { runAndReload("Marcando PR #$n como lista", GhCommands.prReady(n), "PR #$n lista para revisión") })
+                add(button(BidaideBundle.message("github.pr.button.ready")) { runAndReload(BidaideBundle.message("github.pr.ready.task", n), GhCommands.prReady(n), BidaideBundle.message("github.pr.ready.done", n)) })
             }
-            add(button("Actualizar rama") { updateBranch(item) })
+            add(button(BidaideBundle.message("github.pr.button.updateBranch")) { updateBranch(item) })
             if (item.autoMergeRequest != null) {
-                add(button("Quitar auto-merge") {
-                    runAndReload("Quitando auto-merge de PR #$n", GhCommands.prDisableAutoMerge(n), "Auto-merge desactivado en PR #$n")
+                add(button(BidaideBundle.message("github.pr.button.disableAutoMerge")) {
+                    runAndReload(BidaideBundle.message("github.pr.autoMergeOff.task", n), GhCommands.prDisableAutoMerge(n), BidaideBundle.message("github.pr.autoMergeOff.done", n))
                 })
             }
-            add(button("Editar...") { editMetadata(item) })
-            add(button("Cerrar") { runAndReload("Cerrando PR #$n", GhCommands.prSetOpen(n, false), "PR #$n cerrada") })
+            add(button(BidaideBundle.message("github.pr.button.edit")) { editMetadata(item) })
+            add(button(BidaideBundle.message("github.pr.button.close")) { runAndReload(BidaideBundle.message("github.pr.close.task", n), GhCommands.prSetOpen(n, false), BidaideBundle.message("github.pr.close.done", n)) })
         } else if (item.state.equals("CLOSED", true)) {
-            add(button("Reabrir") { runAndReload("Reabriendo PR #$n", GhCommands.prSetOpen(n, true), "PR #$n reabierta") })
+            add(button(BidaideBundle.message("github.pr.button.reopen")) { runAndReload(BidaideBundle.message("github.pr.reopen.task", n), GhCommands.prSetOpen(n, true), BidaideBundle.message("github.pr.reopen.done", n)) })
         }
-        add(button("Abrir en navegador") { BrowserUtil.browse(item.url) })
+        add(button(BidaideBundle.message("github.pr.button.browse")) { BrowserUtil.browse(item.url) })
     }
 
     override fun create() {
         val repository = GhRepoContext.repository(project)
         val branch = repository?.currentBranchName
         if (repository == null || branch == null) {
-            Notifier.warn(project, "GitHub", "No hay rama actual desde la que crear la pull request.")
+            Notifier.warn(project, "GitHub", BidaideBundle.message("github.pr.create.noBranch"))
             return
         }
         GhCli.async(
-            project, "Preparando pull request",
+            project, BidaideBundle.message("github.pr.create.preparing"),
             work = {
                 val base = GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.defaultBranch()).trim()
                 base to PullRequestGit.draft(project, repository, branch, base)
@@ -137,7 +139,7 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
             val dialog = CreatePullRequestDialog(project, branch, defaultBranch, draft)
             if (!dialog.showAndGet()) return@async
             GhCli.async(
-                project, "Creando pull request",
+                project, BidaideBundle.message("github.pr.create.creating"),
                 work = {
                     if (dialog.pushFirst) PullRequestGit.pushCurrentBranch(project, repository, branch)
                     val args = GhCommands.prCreate(
@@ -147,7 +149,7 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
                 },
             ) { output ->
                 val url = output.lines().lastOrNull().orEmpty()
-                Notifier.info(project, "Pull request creada", Html.link(url, url))
+                Notifier.info(project, BidaideBundle.message("github.pr.create.done"), Html.link(url, url))
                 reload()
             }
         }
@@ -157,38 +159,41 @@ class PullRequestsPanel(project: Project) : GhListDetailPanel<GhPullRequest>(
         // GitHub rejects "request changes" and "comment" reviews without a body.
         val dialog = TextPromptDialog(project, "${kind.label} — PR #${pr.number}", kind.label, required = kind != ReviewKind.APPROVE)
         if (!dialog.showAndGet()) return
-        runAndReload("Enviando review de PR #${pr.number}", GhCommands.prReview(pr.number, kind, dialog.text), "Review enviada a PR #${pr.number}")
+        runAndReload(BidaideBundle.message("github.pr.review.task", pr.number), GhCommands.prReview(pr.number, kind, dialog.text), BidaideBundle.message("github.pr.review.done", pr.number))
     }
 
     private fun comment(pr: GhPullRequest) {
-        val dialog = TextPromptDialog(project, "Comentar PR #${pr.number}", "Comentar", required = true)
+        val dialog = TextPromptDialog(project, BidaideBundle.message("github.pr.comment.title", pr.number), BidaideBundle.message("github.pr.button.comment"), required = true)
         if (!dialog.showAndGet()) return
-        runAndReload("Comentando PR #${pr.number}", GhCommands.prComment(pr.number, dialog.text), "Comentario añadido a PR #${pr.number}")
+        runAndReload(BidaideBundle.message("github.pr.comment.task", pr.number), GhCommands.prComment(pr.number, dialog.text), BidaideBundle.message("github.pr.comment.done", pr.number))
     }
 
     private fun merge(pr: GhPullRequest) {
         val dialog = MergeDialog(project, pr)
         if (!dialog.showAndGet()) return
         runAndReload(
-            if (dialog.auto) "Activando auto-merge en PR #${pr.number}" else "Fusionando PR #${pr.number}",
+            if (dialog.auto) BidaideBundle.message("github.pr.merge.autoTask", pr.number) else BidaideBundle.message("github.pr.merge.task", pr.number),
             GhCommands.prMerge(pr.number, dialog.method, dialog.deleteBranch, dialog.auto),
-            if (dialog.auto) "PR #${pr.number} se fusionará sola cuando pasen los checks" else "PR #${pr.number} fusionada",
+            if (dialog.auto) BidaideBundle.message("github.pr.merge.autoDone", pr.number) else BidaideBundle.message("github.pr.merge.done", pr.number),
         )
     }
 
     private fun updateBranch(pr: GhPullRequest) {
-        val options = arrayOf("Merge", "Rebase", "Cancelar")
+        val options = arrayOf("Merge", "Rebase", BidaideBundle.message("common.cancel"))
         val choice = Messages.showDialog(
-            project, "Actualizar «${pr.headRefName}» con los últimos cambios de «${pr.baseRefName}».",
-            "Actualizar rama de PR #${pr.number}", options, 0, Messages.getQuestionIcon(),
+            project, BidaideBundle.message("github.pr.updateBranch.question", pr.headRefName, pr.baseRefName),
+            BidaideBundle.message("github.pr.updateBranch.title", pr.number), options, 0, Messages.getQuestionIcon(),
         )
         if (choice != 0 && choice != 1) return
-        runAndReload("Actualizando rama de PR #${pr.number}", GhCommands.prUpdateBranch(pr.number, rebase = choice == 1), "Rama de PR #${pr.number} actualizada")
+        runAndReload(
+            BidaideBundle.message("github.pr.updateBranch.task", pr.number), GhCommands.prUpdateBranch(pr.number, rebase = choice == 1),
+            BidaideBundle.message("github.pr.updateBranch.done", pr.number),
+        )
     }
 
     private fun editMetadata(pr: GhPullRequest) {
         MetadataEditor.edit(project, "pr", pr.number, pr.labels, pr.assignees, pr.milestone?.title) { command ->
-            runAndReload("Editando PR #${pr.number}", command, "PR #${pr.number} actualizada")
+            runAndReload(BidaideBundle.message("github.pr.edit.task", pr.number), command, BidaideBundle.message("github.pr.edit.done", pr.number))
         }
     }
 }
@@ -197,8 +202,8 @@ private class MergeDialog(project: Project, private val pr: GhPullRequest) : Dia
     private val methodCombo = ComboBox(MergeMethod.entries.toTypedArray()).apply {
         renderer = SimpleListCellRenderer.create("") { it.label }
     }
-    private val deleteBranchBox = JBCheckBox("Borrar la rama tras fusionar")
-    private val autoBox = JBCheckBox("Auto-merge: fusionar cuando pasen checks y reviews obligatorias")
+    private val deleteBranchBox = JBCheckBox(BidaideBundle.message("github.pr.merge.deleteBranch"))
+    private val autoBox = JBCheckBox(BidaideBundle.message("github.pr.merge.auto"))
 
     val method: MergeMethod get() = methodCombo.item
     val deleteBranch: Boolean get() = deleteBranchBox.isSelected
@@ -212,7 +217,7 @@ private class MergeDialog(project: Project, private val pr: GhPullRequest) : Dia
 
     override fun createCenterPanel(): JComponent = panel {
         row { label("${pr.headRefName} → ${pr.baseRefName}") }
-        row("Método:") { cell(methodCombo) }
+        row(BidaideBundle.message("github.pr.merge.method")) { cell(methodCombo) }
         row { cell(deleteBranchBox) }
         row { cell(autoBox) }
     }

@@ -1,5 +1,6 @@
 package com.bidaide.github.ui
 
+import com.bidaide.BidaideBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
@@ -44,7 +45,7 @@ class TextPromptDialog(
     override fun getPreferredFocusedComponent() = area
 
     override fun doValidate(): ValidationInfo? =
-        if (required && text.isEmpty()) ValidationInfo("El texto no puede estar vacío", area) else null
+        if (required && text.isEmpty()) ValidationInfo(BidaideBundle.message("github.dialog.emptyText"), area) else null
 }
 
 /** Title + body form shared by "new pull request" and "new issue"; [extraRows] adds fields below the body. */
@@ -74,7 +75,7 @@ open class TitleBodyDialog(
     fun build() = init()
 
     override fun createCenterPanel(): JComponent = panel {
-        row("Título:") { cell(titleField).align(AlignX.FILL) }
+        row(BidaideBundle.message("github.dialog.title")) { cell(titleField).align(AlignX.FILL) }
         row { cell(JBScrollPane(area)).align(Align.FILL) }.resizableRow()
         extraRows()
     }
@@ -82,7 +83,7 @@ open class TitleBodyDialog(
     override fun getPreferredFocusedComponent() = titleField
 
     override fun doValidate(): ValidationInfo? =
-        if (itemTitle.isEmpty()) ValidationInfo("El título es obligatorio", titleField) else null
+        if (itemTitle.isEmpty()) ValidationInfo(BidaideBundle.message("github.dialog.titleRequired"), titleField) else null
 }
 
 /** Labels, assignees and milestone of an issue or pull request; [reviewersField] is only shown for pull requests. */
@@ -107,7 +108,7 @@ class EditMetadataDialog(
 
     init {
         this.title = title
-        setOKButtonText("Guardar")
+        setOKButtonText(BidaideBundle.message("github.dialog.save"))
         init()
     }
 
@@ -133,13 +134,13 @@ class EditMetadataDialog(
         .filter { it.isNotEmpty() }.toSet()
 
     override fun createCenterPanel(): JComponent = panel {
-        row("Labels:") { cell(JBScrollPane(labelsList)).align(Align.FILL) }.resizableRow()
-        row("Asignados:") { cell(assigneesField).align(AlignX.FILL).comment("Usuarios separados por comas; @me eres tú.") }
-        if (withReviewers) row("Añadir reviewers:") { cell(reviewersField).align(AlignX.FILL) }
-        row("Milestone:") { cell(milestoneCombo) }
+        row(BidaideBundle.message("github.metadata.labels")) { cell(JBScrollPane(labelsList)).align(Align.FILL) }.resizableRow()
+        row(BidaideBundle.message("github.metadata.assignees")) { cell(assigneesField).align(AlignX.FILL).comment(BidaideBundle.message("github.metadata.assignees.comment")) }
+        if (withReviewers) row(BidaideBundle.message("github.metadata.reviewers")) { cell(reviewersField).align(AlignX.FILL) }
+        row(BidaideBundle.message("github.metadata.milestone")) { cell(milestoneCombo) }
     }
 
     private companion object {
-        const val NO_MILESTONE = "(ninguno)"
+        val NO_MILESTONE: String get() = BidaideBundle.message("github.metadata.noMilestone")
     }
 }

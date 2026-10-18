@@ -1,5 +1,6 @@
 package com.bidaide.github.review
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhException
@@ -23,7 +24,7 @@ object Suggestions {
     fun replaceLines(content: String, startLine: Int, endLine: Int, replacement: String): String {
         val separator = if (content.contains("\r\n")) "\r\n" else "\n"
         val lines = content.split(separator).toMutableList()
-        require(startLine in 1..endLine && endLine <= lines.size) { "Líneas $startLine-$endLine fuera del archivo" }
+        require(startLine in 1..endLine && endLine <= lines.size) { BidaideBundle.message("github.suggestion.outOfRange", startLine, endLine) }
         val newLines = if (replacement.isEmpty()) emptyList() else replacement.replace("\r\n", "\n").split("\n")
         return (lines.subList(0, startLine - 1) + newLines + lines.subList(endLine, lines.size)).joinToString(separator)
     }
@@ -35,22 +36,26 @@ object Suggestions {
         val repository = session.state.headRepository
         val branch = session.state.headRefName
         if (repository == null) {
-            Notifier.warn(session.project, "PR #${session.number}", "El repositorio de origen de la PR ya no existe.")
+            Notifier.warn(session.project, "PR #${session.number}", BidaideBundle.message("github.suggestion.noRepository"))
             return
         }
         val answer = Messages.showYesNoDialog(
             session.project,
-            "Se creará un commit en la rama «$branch» de $repository que sustituye " +
-                (if (startLine == endLine) "la línea $endLine" else "las líneas $startLine–$endLine") + " de ${thread.path}.",
-            "Aplicar sugerencia", "Crear Commit", "Cancelar", Messages.getQuestionIcon(),
+            if (startLine == endLine) {
+                BidaideBundle.message("github.suggestion.confirmLine", branch, repository, endLine, thread.path)
+            } else {
+                BidaideBundle.message("github.suggestion.confirmLines", branch, repository, startLine, endLine, thread.path)
+            },
+            BidaideBundle.message("github.suggestion.apply"), BidaideBundle.message("github.suggestion.commit"),
+            BidaideBundle.message("common.cancel"), Messages.getQuestionIcon(),
         )
         if (answer != Messages.YES) return
 
-        session.mutate("Aplicando sugerencia", onDone = { ok ->
+        session.mutate(BidaideBundle.message("github.suggestion.applying"), onDone = { ok ->
             if (ok) {
                 Notifier.info(
-                    session.project, "Sugerencia aplicada",
-                    "Commit creado en $branch. Vuelve a abrir la revisión para ver la PR actualizada.",
+                    session.project, BidaideBundle.message("github.suggestion.applied"),
+                    BidaideBundle.message("github.suggestion.appliedDetail", branch),
                 )
             }
         }) {
@@ -59,7 +64,7 @@ object Suggestions {
             val tip = String(Base64.getMimeDecoder().decode(current.get("content").asString), Charsets.UTF_8)
             val reviewed = GhCli.run(session.workDir, GhCommands.fileContent(thread.path, session.headSha))
             // Line numbers come from the commit under review; refuse if the branch has moved on for this file.
-            if (tip != reviewed) throw GhException("${thread.path} ha cambiado en $branch desde que abriste la revisión. Ábrela de nuevo.")
+            if (tip != reviewed) throw GhException(BidaideBundle.message("github.suggestion.moved", thread.path, branch))
 
             val updated = replaceLines(tip, startLine, endLine, replacement)
             val payload = mapOf(

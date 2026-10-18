@@ -1,5 +1,6 @@
 package com.bidaide.github.ui
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -53,7 +54,7 @@ abstract class GhListDetailPanel<T : Any>(
     filters: List<FilterOption>,
     /** Optional second combo with quick filters such as "mine"; hidden when empty. */
     scopes: List<FilterOption> = emptyList(),
-    private val createText: String? = "Nuevo $noun...",
+    private val createText: String? = BidaideBundle.message("github.list.new", noun),
 ) : JPanel(BorderLayout()), LazyTab {
 
     /** A combo entry: [label] is shown, [value] is handed to [listArgs]. */
@@ -97,7 +98,7 @@ abstract class GhListDetailPanel<T : Any>(
     /** Blocking, off the EDT. Override to enrich the detail with further `gh` calls. */
     protected open fun fetchDetail(workDir: File, item: T): T = parseDetail(GhCli.run(workDir, detailArgs(item)))
 
-    protected open val searchHint: String get() = "Buscar (sintaxis de GitHub), Enter"
+    protected open val searchHint: String get() = BidaideBundle.message("github.list.searchHint")
 
     /** False until the first [reload]; tabs are loaded lazily, when first shown. */
     final override var loaded = false
@@ -116,7 +117,7 @@ abstract class GhListDetailPanel<T : Any>(
      */
     protected open fun richRow(): ((T) -> RichRow)? = null
 
-    /** How many of [detailButtons] are shown as buttons; the rest go into a "Más" menu. The first one is highlighted. */
+    /** How many of [detailButtons] are shown as buttons; the rest go into a "More" menu. The first one is highlighted. */
     protected open val visibleButtons: Int get() = Int.MAX_VALUE
     protected abstract fun detailHtml(item: T): String
     protected abstract fun detailButtons(item: T): List<JButton>
@@ -157,7 +158,7 @@ abstract class GhListDetailPanel<T : Any>(
 
     init {
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        list.emptyText.text = "Cargando..."
+        list.emptyText.text = BidaideBundle.message("github.list.loading")
         list.cellRenderer = richRow()?.let { RichRowRenderer(it) } ?: object : ColoredListCellRenderer<T>() {
             override fun customizeCellRenderer(list: JList<out T>, value: T?, index: Int, selected: Boolean, hasFocus: Boolean) {
                 value?.let { renderCell(this, it) }
@@ -182,7 +183,7 @@ abstract class GhListDetailPanel<T : Any>(
         })
 
         val actions = DefaultActionGroup()
-        actions.add(object : DumbAwareAction("Actualizar", null, AllIcons.Actions.Refresh) {
+        actions.add(object : DumbAwareAction(BidaideBundle.message("github.list.refresh"), null, AllIcons.Actions.Refresh) {
             override fun actionPerformed(e: AnActionEvent) = reload()
         })
         if (createText != null) {
@@ -191,7 +192,7 @@ abstract class GhListDetailPanel<T : Any>(
             })
         }
         actions.addAll(extraActions())
-        actions.add(object : DumbAwareAction("Elegir repositorio de GitHub...", null, AllIcons.Vcs.Vendors.Github) {
+        actions.add(object : DumbAwareAction(BidaideBundle.message("github.list.chooseRepository"), null, AllIcons.Vcs.Vendors.Github) {
             override fun actionPerformed(e: AnActionEvent) = chooseRepository()
         })
         val toolbar = ActionManager.getInstance().createActionToolbar("Bidaide.$noun", actions, true)
@@ -221,17 +222,17 @@ abstract class GhListDetailPanel<T : Any>(
     private fun chooseRepository() {
         val repos = GhRepoContext.gitHubRepos(project)
         if (repos.isEmpty()) {
-            Notifier.warn(project, "GitHub", "Este proyecto no tiene remotos de GitHub.")
+            Notifier.warn(project, "GitHub", BidaideBundle.message("github.list.noRemotes"))
             return
         }
         JBPopupFactory.getInstance().createPopupChooserBuilder(repos)
-            .setTitle("Repositorio que usará gh")
+            .setTitle(BidaideBundle.message("github.list.repositoryTitle"))
             .setItemChosenCallback { repo ->
                 GhCli.async(
-                    project, "Seleccionando $repo",
+                    project, BidaideBundle.message("github.list.selectingRepository", repo),
                     work = { GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.repoSetDefault(repo)) },
                 ) {
-                    Notifier.info(project, "GitHub", "gh usará $repo en este proyecto")
+                    Notifier.info(project, "GitHub", BidaideBundle.message("github.list.repositorySelected", repo))
                     GhEvents.fire(project)
                 }
             }
@@ -244,12 +245,12 @@ abstract class GhListDetailPanel<T : Any>(
         val filter = stateCombo.item?.value.orEmpty()
         val scope = scopeCombo.item?.value.orEmpty()
         val search = searchField.text
-        if (model.isEmpty) list.emptyText.text = "Cargando..."
+        if (model.isEmpty) list.emptyText.text = BidaideBundle.message("github.list.loading")
         GhCli.async(
-            project, "Cargando lista de $noun",
+            project, BidaideBundle.message("github.list.loadingList", noun),
             onFailure = {
                 model.removeAll()
-                list.emptyText.text = "No se pudo cargar. Revisa gh y pulsa Actualizar."
+                list.emptyText.text = BidaideBundle.message("github.list.loadFailed")
             },
             work = { fetchList(GhRepoContext.requireWorkDir(project), filter, scope, search) },
         ) { items ->
@@ -258,7 +259,7 @@ abstract class GhListDetailPanel<T : Any>(
             reloading = true
             try {
                 model.replaceAll(items)
-                list.emptyText.text = "Sin resultados"
+                list.emptyText.text = BidaideBundle.message("github.list.noResults")
                 onItemsLoaded(items)
                 val index = items.indexOfFirst { id(it) == selectedId }
                 if (index >= 0) list.selectedIndex = index else list.clearSelection()
@@ -282,7 +283,7 @@ abstract class GhListDetailPanel<T : Any>(
             return
         }
         GhCli.async(
-            project, "Cargando $noun ${title(item)}",
+            project, BidaideBundle.message("github.list.loadingItem", noun, title(item)),
             work = { fetchDetail(GhRepoContext.requireWorkDir(project), item) },
         ) { detail ->
             if (request == detailRequest) showDetail(detail)
@@ -324,7 +325,7 @@ abstract class GhListDetailPanel<T : Any>(
 
     protected val selectedItem: T? get() = list.selectedValue
 
-    /** The main action stands out, a few more sit beside it, and everything else is one click away under "Más". */
+    /** The main action stands out, a few more sit beside it, and everything else is one click away under "More". */
     private fun showButtons(all: List<JButton>) {
         // A menu holding a single action would only hide it, so it takes at least two to be worth one.
         // (Written as a subtraction: visibleButtons is Int.MAX_VALUE for panels that never fold their buttons.)
@@ -336,7 +337,7 @@ abstract class GhListDetailPanel<T : Any>(
         all.take(visibleButtons).forEach(buttons::add)
         val rest = all.drop(visibleButtons)
         lateinit var more: JButton
-        more = JButton("Más ▾").apply {
+        more = JButton(BidaideBundle.message("github.list.more")).apply {
             addActionListener {
                 val menu = JBPopupMenu()
                 // Each entry presses the real button, so there is one place where an action is defined.
@@ -348,7 +349,7 @@ abstract class GhListDetailPanel<T : Any>(
     }
 
     companion object {
-        /** Whether [total] buttons, of which [visible] may show, leave enough over to deserve a "Más" menu. */
+        /** Whether [total] buttons, of which [visible] may show, leave enough over to deserve a "More" menu. */
         internal fun foldsButtons(total: Int, visible: Int): Boolean = total - visible >= 2
     }
 

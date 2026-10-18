@@ -105,8 +105,8 @@ class PrWorktreesTest {
         assertEquals(PrTestMode.WORKTREE, PrTestMode.parse(null))
         assertEquals(PrTestMode.WORKTREE, PrTestMode.parse("bogus"))
         assertEquals(PrTestMode.CHECKOUT, PrTestMode.parse("CHECKOUT"))
-        assertTrue("sin commit" in PrTestMode.CHECKOUT.label(hasLocalChanges = true))
-        assertFalse("sin commit" in PrTestMode.CHECKOUT.label(hasLocalChanges = false))
+        assertTrue("uncommitted" in PrTestMode.CHECKOUT.label(hasLocalChanges = true))
+        assertFalse("uncommitted" in PrTestMode.CHECKOUT.label(hasLocalChanges = false))
         assertTrue("local.properties" in PrWorktrees.failureHint(copiedLocalProperties = true))
     }
 }

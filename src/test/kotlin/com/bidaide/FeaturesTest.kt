@@ -129,9 +129,9 @@ class FeaturesTest {
 
     @Test
     fun `status widget text summarises checks and review`() {
-        assertEquals("#1 ✓ checks · aprobada", PrStatusWidget.text(pr(1, "APPROVED", passed), 0))
-        assertEquals("#2 ✗ checks · cambios pedidos · 💬 3", PrStatusWidget.text(pr(2, "CHANGES_REQUESTED", passed, failed), 3))
-        assertEquals("#3 … checks · falta review", PrStatusWidget.text(pr(3, "REVIEW_REQUIRED", passed, running), 0))
+        assertEquals("#1 ✓ checks · approved", PrStatusWidget.text(pr(1, "APPROVED", passed), 0))
+        assertEquals("#2 ✗ checks · changes requested · 💬 3", PrStatusWidget.text(pr(2, "CHANGES_REQUESTED", passed, failed), 3))
+        assertEquals("#3 … checks · review required", PrStatusWidget.text(pr(3, "REVIEW_REQUIRED", passed, running), 0))
         assertEquals("#4", PrStatusWidget.text(pr(4), 0))
         assertEquals("#5 merged", PrStatusWidget.text(pr(5).copy(state = "MERGED"), 2))
     }
@@ -146,11 +146,11 @@ class FeaturesTest {
         assertTrue(PrWatch.newReviewRequests(null, after).isEmpty())
 
         val changes = PrWatch.ownPrChanges(before.associateBy { it.number }, after).map { it.message }
-        assertEquals(listOf("Aprobada: #1 T1", "Checks fallan en #1 T1"), changes)
+        assertEquals(listOf("Approved: #1 T1", "Checks failing on #1 T1"), changes)
         assertEquals(listOf(3), PrWatch.newReviewRequests(setOf(1, 2), after).map { it.number })
 
         val green = PrWatch.ownPrChanges(mapOf(1 to PrWatch.snapshot(pr(1, null, running))), listOf(PrWatch.snapshot(pr(1, null, passed))))
-        assertEquals("Checks en verde en #1 T1", green.single().message)
+        assertEquals("Checks green on #1 T1", green.single().message)
     }
 
     @Test

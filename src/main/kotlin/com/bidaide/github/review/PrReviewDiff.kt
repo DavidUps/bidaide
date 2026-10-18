@@ -1,5 +1,6 @@
 package com.bidaide.github.review
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -38,15 +39,15 @@ object PrReviewDiff {
         val base = pr.baseRefOid
         val head = pr.headRefOid
         if (base.isNullOrBlank() || head.isNullOrBlank()) {
-            Notifier.warn(project, "GitHub", "No se pudieron leer los commits de la PR #${pr.number}.")
+            Notifier.warn(project, "GitHub", BidaideBundle.message("github.review.noCommits", pr.number))
             return
         }
         GhCli.async(
-            project, "Preparando revisión de PR #${pr.number}",
+            project, BidaideBundle.message("github.review.preparing", pr.number),
             work = { PrReviewSession.load(project, GhRepoContext.requireWorkDir(project), pr, base, head) },
         ) { session ->
             if (session.files.isEmpty()) {
-                Notifier.info(project, "GitHub", "La PR #${pr.number} no tiene archivos cambiados.")
+                Notifier.info(project, "GitHub", BidaideBundle.message("github.review.noFiles", pr.number))
             } else {
                 PrReviewWindow(session).show()
             }
@@ -56,7 +57,7 @@ object PrReviewDiff {
     /** Re-reads the PR (its head may have moved) and opens a fresh review window. */
     fun reopen(project: Project, number: Int) {
         GhCli.async(
-            project, "Actualizando PR #$number",
+            project, BidaideBundle.message("github.review.reloading", number),
             work = { GhJson.pullRequest(GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.prView(number))) },
         ) { open(project, it) }
     }
@@ -83,14 +84,14 @@ class PrFileDiffProducer(
 
     override fun process(context: UserDataHolder, indicator: ProgressIndicator): DiffRequest {
         val type = contentType
-        if (type.isBinary) return MessageDiffRequest("${file.filename}: archivo binario, sin vista de diferencias.")
+        if (type.isBinary) return MessageDiffRequest(BidaideBundle.message("github.review.binary", file.filename))
         try {
             val left = if (file.status == "added" || baseSha == null) empty() else content(file.previousFilename ?: file.filename, baseSha, type)
             indicator.checkCanceled()
             val right = if (file.status == "removed") empty() else content(file.filename, headSha, type)
             val request = SimpleDiffRequest(
                 "PR #${session.number} — ${file.filename}", left, right,
-                if (interactive) "Base (${baseSha?.take(7)})" else "Antes (${baseSha?.take(7) ?: "vacío"})",
+                if (interactive) "Base (${baseSha?.take(7)})" else BidaideBundle.message("github.review.before", baseSha?.take(7) ?: BidaideBundle.message("github.review.empty")),
                 if (interactive) "PR #${session.number} (${headSha.take(7)})" else "Commit ${headSha.take(7)}",
             )
             request.putUserData(PrReviewDiff.ON_SHOWN, onShown)
@@ -117,8 +118,8 @@ private class ViewedFileAction(private val review: PrFileReview) : CheckboxActio
 
     override fun update(e: AnActionEvent) {
         super.update(e)
-        e.presentation.text = "Visto (${review.session.viewedCount}/${review.session.files.size})"
-        e.presentation.description = "Marca este archivo como visto en la pull request"
+        e.presentation.text = BidaideBundle.message("github.review.viewedCount", review.session.viewedCount, review.session.files.size)
+        e.presentation.description = BidaideBundle.message("github.review.viewedDescription")
     }
 
     override fun isSelected(e: AnActionEvent): Boolean = review.session.isViewed(review.file.filename)
