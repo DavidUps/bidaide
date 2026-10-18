@@ -102,16 +102,16 @@ class RedesignTest {
     fun `the inbox sidebar offers filters and one view per repository`() {
         val views = Inbox.views(notifications)
         assertEquals(
-            listOf("Bandeja", "Asignadas", "Participando", "Menciones", "Menciones a equipo", "Review solicitada", "DavidUps/bidaide", "acme/app", "acme/lib"),
+            listOf("Inbox", "Assigned", "Participating", "Mentioned", "Team mentioned", "Review requested", "DavidUps/bidaide", "acme/app", "acme/lib"),
             views.map { it.label },
         )
         assertEquals(listOf(null, Inbox.FILTERS, Inbox.FILTERS, Inbox.FILTERS, Inbox.FILTERS, Inbox.FILTERS, Inbox.REPOSITORIES, Inbox.REPOSITORIES, Inbox.REPOSITORIES), views.map { it.section })
         fun unread(label: String) = Inbox.unread(views.first { it.label == label }, notifications)
-        assertEquals(3, unread("Bandeja"))
-        assertEquals(1, unread("Asignadas"))
+        assertEquals(3, unread("Inbox"))
+        assertEquals(1, unread("Assigned"))
         // Watching a repository is not taking part in a conversation.
-        assertEquals(2, unread("Participando"))
-        assertEquals(1, unread("Review solicitada"))
+        assertEquals(2, unread("Participating"))
+        assertEquals(1, unread("Review requested"))
         assertEquals(1, unread("DavidUps/bidaide"))
         assertEquals("https://avatars.githubusercontent.com/u/1?v=4", notifications.first().ownerAvatarUrl)
         assertEquals("repo:acme/app", views[7].key)
@@ -125,9 +125,9 @@ class RedesignTest {
         assertEquals(listOf("2"), Inbox.filter(notifications, repo, unreadOnly = true, text = "").map { it.id })
         assertEquals(listOf("3", "4"), Inbox.filter(notifications, Inbox.ALL, unreadOnly = true, text = " ACME ").map { it.id })
         assertEquals(listOf("4"), Inbox.filter(notifications, Inbox.ALL, unreadOnly = false, text = "login").map { it.id })
-        assertTrue(Inbox.filter(notifications, views.first { it.label == "Menciones" }, false, "").isEmpty())
-        assertEquals("review solicitada", Inbox.reason(notifications[1]))
-        assertEquals("siguiendo", Inbox.reason(notifications[2]))
+        assertTrue(Inbox.filter(notifications, views.first { it.label == "Mentioned" }, false, "").isEmpty())
+        assertEquals("review requested", Inbox.reason(notifications[1]))
+        assertEquals("watching", Inbox.reason(notifications[2]))
         assertFalse(Inbox.views(emptyList()).any { it.section == Inbox.REPOSITORIES })
         assertEquals(listOf("api", "notifications?per_page=100&all=true"), GhNotifications.inbox())
     }

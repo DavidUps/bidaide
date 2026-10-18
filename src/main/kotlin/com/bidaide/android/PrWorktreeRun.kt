@@ -45,7 +45,7 @@ import org.jetbrains.plugins.gradle.settings.GradleSettings
 import java.io.File
 
 /**
- * "Probar en dispositivo" without touching the user's checkout: the pull request's head is fetched into a detached
+ * "Test on Device" without touching the user's checkout: the pull request's head is fetched into a detached
  * worktree under the IDE system directory, built there with the project's Gradle wrapper and JDK, and started on
  * the device chosen through [AdbTargetResolver].
  */
@@ -214,7 +214,7 @@ object PrWorktreeRun {
     /** Deletes this repository's PR worktrees after asking; the user's checkout and other worktrees are never touched. */
     fun deleteWorktrees(project: Project) {
         val repository = GhRepoContext.repository(project)
-            ?: return Notifier.warn(project, BidaideBundle.message("github.pr.worktrees.title"), "Este proyecto no tiene ningún repositorio git.")
+            ?: return Notifier.warn(project, BidaideBundle.message("github.pr.worktrees.title"), BidaideBundle.message("gh.repo.noGit"))
         val repoRoot = VfsUtilCore.virtualToIoFile(repository.root)
         val systemDir = File(PathManager.getSystemPath())
         val root = PrWorktrees.root(systemDir)

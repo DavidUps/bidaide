@@ -1,5 +1,6 @@
 package com.bidaide.github.inbox
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhNotification
 
 /** The views of the inbox: which notifications each one shows, and how many unread ones it holds. */
@@ -15,19 +16,21 @@ object Inbox {
     /** Reasons that mean the user is personally involved, as opposed to just watching the repository. */
     private val PARTICIPATING = setOf("author", "comment", "mention", "team_mention", "review_requested", "assign", "state_change", "manual", "approval_requested")
 
-    const val FILTERS = "Filtros"
-    const val REPOSITORIES = "Repositorios"
+    val FILTERS: String get() = BidaideBundle.message("github.inbox.filters")
+    val REPOSITORIES: String get() = BidaideBundle.message("github.inbox.repositories")
 
-    val ALL = View("Bandeja", null) { true }
+    /** A single instance, so the panel can tell it apart; its label is the one of the language at startup. */
+    val ALL = View(BidaideBundle.message("github.inbox.all"), null) { true }
 
-    private val FIXED = listOf(
-        ALL,
-        View("Asignadas", FILTERS) { it.reason == "assign" },
-        View("Participando", FILTERS) { it.reason in PARTICIPATING },
-        View("Menciones", FILTERS) { it.reason == "mention" },
-        View("Menciones a equipo", FILTERS) { it.reason == "team_mention" },
-        View("Review solicitada", FILTERS) { it.reason == "review_requested" },
-    )
+    private val FIXED: List<View>
+        get() = listOf(
+            ALL,
+            View(BidaideBundle.message("github.inbox.assigned"), FILTERS) { it.reason == "assign" },
+            View(BidaideBundle.message("github.inbox.participating"), FILTERS) { it.reason in PARTICIPATING },
+            View(BidaideBundle.message("github.inbox.mentioned"), FILTERS) { it.reason == "mention" },
+            View(BidaideBundle.message("github.inbox.teamMentioned"), FILTERS) { it.reason == "team_mention" },
+            View(BidaideBundle.message("github.inbox.reviewRequested"), FILTERS) { it.reason == "review_requested" },
+        )
 
     /** The fixed views followed by one per repository that has notifications, busiest first. */
     fun views(notifications: List<GhNotification>): List<View> {
@@ -50,19 +53,19 @@ object Inbox {
 
     /** GitHub's wording for why a notification arrived. */
     fun reason(notification: GhNotification): String = when (notification.reason) {
-        "assign" -> "asignada"
-        "author" -> "autor"
-        "comment" -> "comentaste"
+        "assign" -> BidaideBundle.message("github.inbox.reason.assign")
+        "author" -> BidaideBundle.message("github.inbox.reason.author")
+        "comment" -> BidaideBundle.message("github.inbox.reason.comment")
         "ci_activity" -> "CI"
-        "invitation" -> "invitación"
-        "manual" -> "suscrito"
-        "mention" -> "mención"
-        "team_mention" -> "mención a equipo"
-        "review_requested" -> "review solicitada"
-        "security_alert" -> "alerta de seguridad"
-        "state_change" -> "cambio de estado"
-        "subscribed" -> "siguiendo"
-        "approval_requested" -> "aprobación pedida"
+        "invitation" -> BidaideBundle.message("github.inbox.reason.invitation")
+        "manual" -> BidaideBundle.message("github.inbox.reason.manual")
+        "mention" -> BidaideBundle.message("github.inbox.reason.mention")
+        "team_mention" -> BidaideBundle.message("github.inbox.reason.teamMention")
+        "review_requested" -> BidaideBundle.message("github.inbox.reason.reviewRequested")
+        "security_alert" -> BidaideBundle.message("github.inbox.reason.securityAlert")
+        "state_change" -> BidaideBundle.message("github.inbox.reason.stateChange")
+        "subscribed" -> BidaideBundle.message("github.inbox.reason.subscribed")
+        "approval_requested" -> BidaideBundle.message("github.inbox.reason.approvalRequested")
         else -> notification.reason.replace('_', ' ')
     }
 }

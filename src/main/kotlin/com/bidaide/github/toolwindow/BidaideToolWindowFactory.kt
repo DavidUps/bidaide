@@ -1,5 +1,6 @@
 package com.bidaide.github.toolwindow
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhEvents
 import com.bidaide.github.discussions.DiscussionsPanel
 import com.bidaide.github.inbox.InboxPanel
@@ -23,7 +24,7 @@ class BidaideToolWindowFactory : ToolWindowFactory, DumbAware {
         val factory = ContentFactory.getInstance()
         val panels: List<Pair<String, JComponent>> = listOf(
             "Pull Requests" to PullRequestsPanel(project), "Issues" to IssuesPanel(project), "Actions" to RunsPanel(project),
-            "Releases" to ReleasesPanel(project), "Bandeja" to InboxPanel(project), "Discussions" to DiscussionsPanel(project),
+            "Releases" to ReleasesPanel(project), BidaideBundle.message("github.inbox.all") to InboxPanel(project), "Discussions" to DiscussionsPanel(project),
             "Projects" to ProjectsPanel(project),
         )
         // Each tab talks to gh on its own, so a tab only loads once it is looked at.

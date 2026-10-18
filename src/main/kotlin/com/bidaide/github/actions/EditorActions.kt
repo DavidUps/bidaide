@@ -1,5 +1,6 @@
 package com.bidaide.github.actions
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
@@ -73,7 +74,7 @@ class OpenInGitHubAction : GitHubFileAction() {
         val project = e.project ?: return
         val target = target(e) ?: return
         val args = GhCommands.browse(target.path, target.lines, target.branch, commit = null, printOnly = false)
-        GhCli.async(project, "Abriendo en GitHub", work = { GhCli.run(target.workDir, args) }) {}
+        GhCli.async(project, BidaideBundle.message("github.action.opening"), work = { GhCli.run(target.workDir, args) }) {}
     }
 }
 
@@ -83,9 +84,9 @@ class CopyGitHubLinkAction : GitHubFileAction() {
         val project = e.project ?: return
         val target = target(e) ?: return
         val args = GhCommands.browse(target.path, target.lines, target.branch, target.commit, printOnly = true)
-        GhCli.async(project, "Obteniendo enlace de GitHub", work = { GhCli.run(target.workDir, args).trim() }) { url ->
+        GhCli.async(project, BidaideBundle.message("github.action.gettingLink"), work = { GhCli.run(target.workDir, args).trim() }) { url ->
             CopyPasteManager.getInstance().setContents(StringSelection(url))
-            Notifier.info(project, "Enlace copiado", Html.link(url, url))
+            Notifier.info(project, BidaideBundle.message("github.action.linkCopied"), Html.link(url, url))
         }
     }
 }
@@ -108,11 +109,11 @@ class CreateGistAction : AnAction(), DumbAware {
         val dialog = GistDialog(project, file, selection != null)
         if (!dialog.showAndGet()) return
         GhCli.async(
-            project, "Creando gist",
+            project, BidaideBundle.message("github.gist.creating"),
             work = { createGist(file, selection, dialog.description, dialog.isPublic) },
         ) { url ->
             CopyPasteManager.getInstance().setContents(StringSelection(url))
-            Notifier.info(project, "Gist creado (enlace copiado)", Html.link(url, url))
+            Notifier.info(project, BidaideBundle.message("github.gist.created"), Html.link(url, url))
         }
     }
 
@@ -132,21 +133,21 @@ class CreateGistAction : AnAction(), DumbAware {
 
 private class GistDialog(project: Project, file: VirtualFile, selectionOnly: Boolean) : DialogWrapper(project) {
     private val descriptionField = JBTextField()
-    private val publicBox = JBCheckBox("Público")
-    private val subject = if (selectionOnly) "selección de ${file.name}" else file.name
+    private val publicBox = JBCheckBox(BidaideBundle.message("github.gist.public"))
+    private val subject = if (selectionOnly) BidaideBundle.message("github.gist.selectionOf", file.name) else file.name
 
     val description: String get() = descriptionField.text.trim()
     val isPublic: Boolean get() = publicBox.isSelected
 
     init {
-        title = "Crear gist"
-        setOKButtonText("Crear")
+        title = BidaideBundle.message("github.gist.title")
+        setOKButtonText(BidaideBundle.message("github.pr.create.ok"))
         init()
     }
 
     override fun createCenterPanel(): JComponent = panel {
-        row { label("Contenido: $subject") }
-        row("Descripción:") { cell(descriptionField).align(AlignX.FILL) }
+        row { label(BidaideBundle.message("github.gist.content", subject)) }
+        row(BidaideBundle.message("github.gist.description")) { cell(descriptionField).align(AlignX.FILL) }
         row { cell(publicBox) }
     }
 }
@@ -163,7 +164,7 @@ class CreateIssueFromSelectionAction : GitHubFileAction() {
             )
         }.orEmpty()
         val args = GhCommands.browse(target.path, target.lines, target.branch, target.commit, printOnly = true)
-        GhCli.async(project, "Preparando issue", work = { GhCli.run(target.workDir, args).trim() }) { permalink ->
+        GhCli.async(project, BidaideBundle.message("github.issue.preparing"), work = { GhCli.run(target.workDir, args).trim() }) { permalink ->
             val language = target.path?.substringAfterLast('.', "").orEmpty()
             IssuesPanel.create(project, IssueDrafts.title(code), IssueDrafts.body(permalink, code, language))
         }

@@ -1,5 +1,6 @@
 package com.bidaide.github.runs
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Downloads
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
@@ -30,7 +31,7 @@ object CiArtifacts {
     /** Lets the user pick an artifact of the run and downloads it. */
     fun choose(project: Project, runId: Long) {
         GhCli.async(
-            project, "Buscando artifacts",
+            project, BidaideBundle.message("github.ci.searching"),
             work = { Found(runId, parseNames(GhCli.run(GhRepoContext.requireWorkDir(project), listArgs(runId)))) },
         ) { pick(project, it) }
     }
@@ -38,7 +39,7 @@ object CiArtifacts {
     /** Same, for the newest finished run of [branch] that has artifacts. */
     fun forBranch(project: Project, branch: String) {
         GhCli.async(
-            project, "Buscando artifacts de $branch",
+            project, BidaideBundle.message("github.ci.searchingBranch", branch),
             work = {
                 val workDir = GhRepoContext.requireWorkDir(project)
                 GhJson.runs(GhCli.run(workDir, GhCommands.runList(branch, ""))).asSequence()
@@ -46,17 +47,17 @@ object CiArtifacts {
                     .take(MAX_RUNS_CHECKED)
                     .map { Found(it.databaseId, parseNames(GhCli.run(workDir, listArgs(it.databaseId)))) }
                     .firstOrNull { it.names.isNotEmpty() }
-                    ?: throw GhException("Ningún run reciente de «$branch» tiene artifacts descargables.")
+                    ?: throw GhException(BidaideBundle.message("github.ci.noneForBranch", branch))
             },
         ) { pick(project, it) }
     }
 
     private fun pick(project: Project, found: Found) {
         when (found.names.size) {
-            0 -> Notifier.info(project, "GitHub Actions", "Este run no tiene artifacts descargables.")
+            0 -> Notifier.info(project, "GitHub Actions", BidaideBundle.message("github.ci.none"))
             1 -> download(project, found.runId, found.names.single())
             else -> JBPopupFactory.getInstance().createPopupChooserBuilder(found.names)
-                .setTitle("Artifact a descargar")
+                .setTitle(BidaideBundle.message("github.ci.choose"))
                 .setItemChosenCallback { download(project, found.runId, it) }
                 .createPopup()
                 .showCenteredInCurrentWindow(project)
@@ -65,7 +66,7 @@ object CiArtifacts {
 
     private fun download(project: Project, runId: Long, name: String) {
         GhCli.async(
-            project, "Descargando artifact $name",
+            project, BidaideBundle.message("github.ci.downloading", name),
             work = {
                 val dir = File(Downloads.captureDir(),"bidaide-artifacts/$runId/${name.replace(Regex("[^A-Za-z0-9._-]+"), "_")}")
                 // gh refuses to overwrite files from a previous download.
@@ -74,7 +75,7 @@ object CiArtifacts {
                 GhCli.run(GhRepoContext.requireWorkDir(project), downloadArgs(runId, name, dir), GhCli.LONG_TIMEOUT_MILLIS)
                 dir
             },
-        ) { dir -> Downloads.offer(project, dir, "Artifact «$name»") }
+        ) { dir -> Downloads.offer(project, dir, BidaideBundle.message("github.ci.artifact", name)) }
     }
 
     private const val MAX_RUNS_CHECKED = 5

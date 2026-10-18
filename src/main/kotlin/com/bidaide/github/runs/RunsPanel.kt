@@ -1,5 +1,6 @@
 package com.bidaide.github.runs
 
+import com.bidaide.BidaideBundle
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhJson
@@ -29,7 +30,9 @@ import javax.swing.JButton
 /** GitHub Actions runs: live status, re-run, cancel and logs with links into the project. */
 class RunsPanel(project: Project) : GhListDetailPanel<GhRun>(
     project, "run",
-    filters = listOf(FilterOption("Rama actual", CURRENT_BRANCH), FilterOption("Todas las ramas", "")),
+    filters = listOf(
+        FilterOption(BidaideBundle.message("github.runs.currentBranch"), CURRENT_BRANCH), FilterOption(BidaideBundle.message("github.runs.allBranches"), ""),
+    ),
     createText = null,
 ) {
     override fun listArgs(filter: String, scope: String, search: String): List<String> {
@@ -43,13 +46,16 @@ class RunsPanel(project: Project) : GhListDetailPanel<GhRun>(
     override fun parseDetail(json: String) = GhJson.run(json)
     override fun id(item: GhRun) = item.databaseId
     override fun title(item: GhRun) = item.workflowName
-    override val searchHint get() = "Filtrar por workflow, Enter"
+    override val searchHint get() = BidaideBundle.message("github.runs.searchHint")
 
     /** Keep polling while something is still running. */
     override fun autoRefreshMillis(items: List<GhRun>): Int? = REFRESH_MILLIS.takeIf { items.any { run -> !run.isFinished } }
 
     override fun extraActions(): List<AnAction> = listOf(
-        object : DumbAwareAction("Lanzar workflow...", "Ejecuta un workflow con workflow_dispatch", AllIcons.Actions.Execute) {
+        object : DumbAwareAction(
+            BidaideBundle.message("github.runs.dispatch"), BidaideBundle.message("github.runs.dispatch.description"),
+            AllIcons.Actions.Execute,
+        ) {
             override fun actionPerformed(e: AnActionEvent) = WorkflowDispatch.start(project) { reload() }
         },
     )
@@ -93,22 +99,22 @@ class RunsPanel(project: Project) : GhListDetailPanel<GhRun>(
         val id = item.databaseId
         if (item.isFinished) {
             if (item.failed) {
-                add(button("Relanzar fallidos") { runAndReload("Relanzando jobs fallidos", GhCommands.runRerun(id, true), "Jobs fallidos relanzados") })
-                add(button("Ver logs de fallos") { showLog(item, failedOnly = true) })
+                add(button(BidaideBundle.message("github.runs.rerunFailed")) { runAndReload(BidaideBundle.message("github.runs.rerunningFailed"), GhCommands.runRerun(id, true), BidaideBundle.message("github.runs.rerunFailed.done")) })
+                add(button(BidaideBundle.message("github.runs.failedLogs")) { showLog(item, failedOnly = true) })
             }
-            add(button("Relanzar todo") { runAndReload("Relanzando run", GhCommands.runRerun(id, false), "Run relanzado") })
-            add(button("Ver log completo") { showLog(item, failedOnly = false) })
+            add(button(BidaideBundle.message("github.runs.rerunAll")) { runAndReload(BidaideBundle.message("github.runs.rerunning"), GhCommands.runRerun(id, false), BidaideBundle.message("github.runs.rerun.done")) })
+            add(button(BidaideBundle.message("github.runs.fullLog")) { showLog(item, failedOnly = false) })
         } else {
-            add(button("Cancelar") { runAndReload("Cancelando run", GhCommands.runCancel(id), "Run cancelado") })
+            add(button(BidaideBundle.message("common.cancel")) { runAndReload(BidaideBundle.message("github.runs.cancelling"), GhCommands.runCancel(id), BidaideBundle.message("github.runs.cancelled")) })
         }
         if (item.isFinished) add(button("Artifacts...") { CiArtifacts.choose(project, item.databaseId) })
-        add(button("Abrir en navegador") { BrowserUtil.browse(item.url) })
+        add(button(BidaideBundle.message("github.pr.button.browse")) { BrowserUtil.browse(item.url) })
     }
 
     /** Opens the log in its own closable tab, with file paths turned into links to the local sources. */
     private fun showLog(run: GhRun, failedOnly: Boolean) {
         GhCli.async(
-            project, "Descargando log de ${run.workflowName}",
+            project, BidaideBundle.message("github.runs.downloadingLog", run.workflowName),
             work = { GhCli.run(GhRepoContext.requireWorkDir(project), GhCommands.runLog(run.databaseId, failedOnly)) },
         ) { log ->
             val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Bidaide") ?: return@async
@@ -116,8 +122,8 @@ class RunsPanel(project: Project) : GhListDetailPanel<GhRun>(
             val builder = TextConsoleBuilderFactory.getInstance().createBuilder(project)
             if (root != null) builder.addFilter(CiPathFilter(project, root))
             val console = builder.console
-            console.print(log.ifBlank { "El log está vacío.\n" }, ConsoleViewContentType.NORMAL_OUTPUT)
-            val name = "${if (failedOnly) "Fallos" else "Log"}: ${run.workflowName}"
+            console.print(log.ifBlank { BidaideBundle.message("github.runs.emptyLog") + "\n" }, ConsoleViewContentType.NORMAL_OUTPUT)
+            val name = "${if (failedOnly) BidaideBundle.message("github.runs.failures") else "Log"}: ${run.workflowName}"
             val content = ContentFactory.getInstance().createContent(console.component, name, false)
             content.isCloseable = true
             Disposer.register(content, console)

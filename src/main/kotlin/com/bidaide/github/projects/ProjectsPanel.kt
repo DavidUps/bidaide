@@ -1,5 +1,6 @@
 package com.bidaide.github.projects
 
+import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCli
 import com.bidaide.gh.GhException
@@ -54,7 +55,7 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
 
     override fun detailComponent(item: GhProject): JComponent {
         shown = item
-        board.show(columns(item), "Este proyecto no tiene tarjetas")
+        board.show(columns(item), BidaideBundle.message("github.project.noCards"))
         return board
     }
 
@@ -69,7 +70,7 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
                 val kind = when (item.type) {
                     "PullRequest" -> "PR"
                     "Issue" -> "issue"
-                    else -> "borrador"
+                    else -> BidaideBundle.message("github.pr.row.draft")
                 }
                 KanbanBoard.Card(item.id, item.toString(), listOfNotNull(kind, item.repository).joinToString(" · "), item)
             })
@@ -81,10 +82,13 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
         val field = project.statusField
         val option = field?.options?.firstOrNull { it.name == status }
         if (card == null || field == null || option == null) {
-            Notifier.warn(this.project, "GitHub", "No se puede mover a «$status»: no es una opción del campo de estado del proyecto.")
+            Notifier.warn(this.project, "GitHub", BidaideBundle.message("github.project.badStatus", status))
             return
         }
-        runAndReload("Moviendo tarjeta", GhProjects.moveItem(project.id, card.id, field.id, option.id), "«${card.title.take(60)}» movida a ${option.name}")
+        runAndReload(
+            BidaideBundle.message("github.project.moving"), GhProjects.moveItem(project.id, card.id, field.id, option.id),
+            BidaideBundle.message("github.project.moved", card.title.take(60), option.name),
+        )
     }
 
     /** `gh project` fails with a cryptic message when the token lacks the scope; say what to do instead. */
@@ -99,13 +103,17 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
     override fun parseDetail(json: String): GhProject = error("fetchDetail is overridden")
     override fun id(item: GhProject) = item.number.toLong()
     override fun title(item: GhProject) = item.title
-    override val searchHint get() = "Filtrar por título, Enter"
+    override val searchHint get() = BidaideBundle.message("github.project.searchHint")
 
     override fun renderCell(renderer: ColoredListCellRenderer<GhProject>, item: GhProject) {
         renderer.icon = AllIcons.Nodes.DataTables
         renderer.append("#${item.number} ", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         renderer.append(item.title)
-        renderer.append("  ${item.owner} · ${item.itemCount} tarjetas${if (item.closed) " · cerrado" else ""}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+        val closed = if (item.closed) " · " + BidaideBundle.message("github.project.closed") else ""
+        renderer.append(
+            "  ${item.owner} · ${BidaideBundle.message("github.project.cardCount", item.itemCount)}$closed",
+            SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES,
+        )
     }
 
     override fun detailHtml(item: GhProject): String = buildString {
@@ -113,7 +121,7 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
         append("<p>${esc(item.owner)} · ${Html.link(item.url, "GitHub")}</p>")
         if (item.description.isNotBlank()) append("<p>${esc(item.description)}</p>")
         val items = item.items.orEmpty()
-        if (items.isEmpty()) append("<p><i>Sin tarjetas.</i></p>")
+        if (items.isEmpty()) append("<p><i>${esc(BidaideBundle.message("github.project.noCardsShort"))}</i></p>")
         for ((status, cards) in items.groupBy { it.status }) {
             append("<h3>${esc(status)} <font color=\"gray\">${cards.size}</font></h3>")
             for (card in cards) {
@@ -121,7 +129,7 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
                 val kind = when (card.type) {
                     "PullRequest" -> "PR"
                     "Issue" -> "issue"
-                    else -> "borrador"
+                    else -> BidaideBundle.message("github.pr.row.draft")
                 }
                 append("<div>• ${Html.link(card.url, label)} <small><font color=\"gray\">$kind${card.repository?.let { " · ${esc(it)}" }.orEmpty()}</font></small></div>")
             }
@@ -129,43 +137,43 @@ class ProjectsPanel(project: Project) : GhListDetailPanel<GhProject>(project, "p
     }
 
     override fun detailButtons(item: GhProject): List<JButton> = buildList {
-        add(button("Añadir issue o PR...") { addItem(item) })
-        if (!item.items.isNullOrEmpty()) add(button("Mover tarjeta...") { moveItem(item) })
-        add(button("Abrir en navegador") { BrowserUtil.browse(item.url) })
+        add(button(BidaideBundle.message("github.project.addItem")) { addItem(item) })
+        if (!item.items.isNullOrEmpty()) add(button(BidaideBundle.message("github.project.moveItem")) { moveItem(item) })
+        add(button(BidaideBundle.message("github.pr.button.browse")) { BrowserUtil.browse(item.url) })
     }
 
     private fun addItem(board: GhProject) {
         val input = Messages.showInputDialog(
-            project, "Número de issue o PR de este repositorio, o URL completa de otro.", "Añadir a «${board.title}»", null,
+            project, BidaideBundle.message("github.project.addItem.prompt"), BidaideBundle.message("github.project.addItem.title", board.title), null,
         )?.trim()?.removePrefix("#") ?: return
         if (input.isEmpty()) return
         GhCli.async(
-            project, "Añadiendo tarjeta",
+            project, BidaideBundle.message("github.project.adding"),
             work = {
                 val workDir = GhRepoContext.requireWorkDir(project)
                 val url = input.toIntOrNull()?.let { GhCli.run(workDir, GhProjects.itemUrl(it)).trim() } ?: input
                 scoped { GhCli.run(workDir, GhProjects.addItem(board.number, board.owner, url)) }
             },
         ) {
-            Notifier.info(project, "GitHub", "Tarjeta añadida a «${board.title}»")
+            Notifier.info(project, "GitHub", BidaideBundle.message("github.project.added", board.title))
             reload()
         }
     }
 
     private fun moveItem(board: GhProject) {
-        choose("Tarjeta a mover", board.items.orEmpty()) { card ->
+        choose(BidaideBundle.message("github.project.chooseCard"), board.items.orEmpty()) { card ->
             GhCli.async(
-                project, "Cargando columnas",
+                project, BidaideBundle.message("github.project.loadingColumns"),
                 work = { scoped { GhProjects.parseStatusField(GhCli.run(GhRepoContext.requireWorkDir(project), GhProjects.fields(board.number, board.owner))) } },
             ) { field ->
                 if (field == null) {
-                    Notifier.warn(project, "GitHub", "«${board.title}» no tiene ningún campo de selección por el que mover tarjetas.")
+                    Notifier.warn(project, "GitHub", BidaideBundle.message("github.project.noField", board.title))
                     return@async
                 }
-                choose("${field.name} de «${card.title.take(40)}»", field.options) { option ->
+                choose(BidaideBundle.message("github.project.chooseOption", field.name, card.title.take(40)), field.options) { option ->
                     runAndReload(
-                        "Moviendo tarjeta", GhProjects.moveItem(board.id, card.id, field.id, option.id),
-                        "«${card.title.take(60)}» movida a ${option.name}",
+                        BidaideBundle.message("github.project.moving"), GhProjects.moveItem(board.id, card.id, field.id, option.id),
+                        BidaideBundle.message("github.project.moved", card.title.take(60), option.name),
                     )
                 }
             }

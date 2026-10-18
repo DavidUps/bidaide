@@ -145,7 +145,7 @@ class IssuesPanel(project: Project) : GhListDetailPanel<GhIssue>(
 
     override fun richRow(): (GhIssue) -> RichRow = { IssueRows.row(it) }
 
-    /** "Comentar" stands out, two more stay at hand and the rest go under "Más". */
+    /** "Comment" stands out, two more stay at hand and the rest go under "More". */
     override val visibleButtons get() = 3
 
     override fun detailHeader(item: GhIssue): JComponent = IssueHeader(item)
