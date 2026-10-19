@@ -50,6 +50,8 @@ class GhReviewState(
     /** Node id of the viewer's pending review, if one is open. */
     val pendingReviewId: String?,
     val threads: List<GhReviewThread>,
+    /** Login of the authenticated `gh` account, for the avatar beside new comments. */
+    val viewerLogin: String? = null,
 )
 
 enum class ReviewEvent(private val text: Supplier<String>) {
@@ -68,7 +70,7 @@ enum class ReactionContent(val emoji: String) {
 }
 
 object GhReviewCommands {
-    private const val STATE_QUERY = "query(\$owner:String!,\$name:String!,\$number:Int!,\$endCursor:String){" +
+    private const val STATE_QUERY = "query(\$owner:String!,\$name:String!,\$number:Int!,\$endCursor:String){viewer{login} " +
         "repository(owner:\$owner,name:\$name){pullRequest(number:\$number){id headRefName headRepository{nameWithOwner} " +
         "reviews(states:PENDING,first:5){nodes{id}} " +
         "reviewThreads(first:50,after:\$endCursor){nodes{id isResolved isOutdated path line startLine originalLine diffSide " +
@@ -141,16 +143,19 @@ object GhReviewCommands {
         var headRefName = ""
         var headRepository: String? = null
         var pendingReviewId: String? = null
+        var viewerLogin: String? = null
         val threads = ArrayList<GhReviewThread>()
         for (page in JsonParser.parseString(slurped).asJsonArray) {
-            val pr = page.asJsonObject.getAsJsonObject("data").getAsJsonObject("repository").getAsJsonObject("pullRequest")
+            val data = page.asJsonObject.getAsJsonObject("data")
+            viewerLogin = data.obj("viewer")?.string("login") ?: viewerLogin
+            val pr = data.getAsJsonObject("repository").getAsJsonObject("pullRequest")
             id = pr.string("id").orEmpty()
             headRefName = pr.string("headRefName").orEmpty()
             headRepository = pr.obj("headRepository")?.string("nameWithOwner")
             pendingReviewId = pr.nodes("reviews").firstOrNull()?.string("id")
             pr.nodes("reviewThreads").mapTo(threads, ::parseThread)
         }
-        return GhReviewState(id, headRefName, headRepository, pendingReviewId, threads)
+        return GhReviewState(id, headRefName, headRepository, pendingReviewId, threads, viewerLogin)
     }
 
     private fun parseThread(t: JsonObject) = GhReviewThread(

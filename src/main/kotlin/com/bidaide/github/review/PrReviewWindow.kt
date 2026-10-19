@@ -12,15 +12,24 @@ import com.bidaide.gh.GhReviewCommands
 import com.bidaide.gh.GhReviewThread
 import com.bidaide.gh.ReviewEvent
 import com.bidaide.github.ui.GhLoadingPanel
+import com.bidaide.github.ui.Html
+import com.intellij.ide.ui.laf.darcula.ui.DarculaButtonUI
+import com.intellij.ui.InplaceButton
+import com.intellij.ui.JBColor
+import com.intellij.ui.components.ActionLink
+import com.intellij.util.ui.UIUtil
+import javax.swing.BoxLayout
+import javax.swing.SwingConstants
 import com.intellij.diff.chains.SimpleDiffRequestChain
 import com.intellij.diff.impl.CacheDiffRequestChainProcessor
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.fileTypes.FileTypeManager
+import com.intellij.openapi.keymap.KeymapUtil
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.FrameWrapper
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.util.Disposer
@@ -36,8 +45,6 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
-import com.intellij.ui.dsl.builder.Align
-import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.tree.TreeUtil
@@ -86,7 +93,6 @@ class PrReviewWindow(private val session: PrReviewSession) {
     private val threadsList = JBList(threadsModel)
 
     private val submitButton = JButton()
-    private val discardButton = JButton(BidaideBundle.message("github.review.discard"))
     private val summary = JBLabel()
 
     private val frame = FrameWrapper(project, "Bidaide.PrReview", false, "PR #${session.number} — ${session.pr.title}")
@@ -103,7 +109,10 @@ class PrReviewWindow(private val session: PrReviewSession) {
             firstComponent = titled(BidaideBundle.message("github.review.files"), JBScrollPane(tree))
             secondComponent = titled(BidaideBundle.message("gh.merge.conversations"), JBScrollPane(threadsList))
         }
-        main.firstComponent = left
+        main.firstComponent = JPanel(BorderLayout()).apply {
+            add(header(), BorderLayout.NORTH)
+            add(left, BorderLayout.CENTER)
+        }
         diffHolder.add(processor.component, BorderLayout.CENTER)
         main.secondComponent = diffLoading.component
         val root = JPanel(BorderLayout()).apply {
@@ -111,6 +120,9 @@ class PrReviewWindow(private val session: PrReviewSession) {
             add(main, BorderLayout.CENTER)
         }
         frame.component = root
+        // The window is no editor tab, so the IDE's "Close" (⌘W, Ctrl+F4…) has to be wired to it by hand.
+        DumbAwareAction.create { frame.close() }
+            .registerCustomShortcutSet(KeymapUtil.getActiveKeymapShortcuts(IdeActions.ACTION_CLOSE), root, frame)
         frame.preferredFocusedComponent = tree
         Disposer.register(frame, processor)
         session.addListener(frame) { refresh() }
@@ -125,16 +137,25 @@ class PrReviewWindow(private val session: PrReviewSession) {
         add(content, BorderLayout.CENTER)
     }
 
+    /** Title and branches of the pull request above the file tree, as in the IDE's own pull request view. */
+    private fun header(): JComponent = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        border = JBUI.Borders.empty(10, 10, 6, 10)
+        add(JBLabel("<html><b>${Html.esc(session.pr.title)}</b> <font color=\"gray\">#${session.number}</font></html>").apply {
+            font = JBUI.Fonts.label().biggerOn(2f)
+        }.leftAligned())
+        add(JBLabel("${session.pr.headRefName} → ${session.pr.baseRefName}", AllIcons.Vcs.Branch, SwingConstants.LEFT).apply {
+            foreground = UIUtil.getContextHelpForeground()
+            border = JBUI.Borders.emptyTop(4)
+        }.leftAligned())
+    }
+
     private fun toolbar(): JComponent {
         submitButton.addActionListener { submitReview() }
-        discardButton.addActionListener { discardReview() }
-        val refresh = JButton(BidaideBundle.message("github.list.refresh")).apply { addActionListener { session.refresh() } }
-        val reload = JButton(BidaideBundle.message("github.review.reload")).apply {
-            toolTipText = BidaideBundle.message("github.review.reload.tooltip")
-            addActionListener {
-                frame.close()
-                PrReviewDiff.reopen(project, session.number)
-            }
+        val refresh = InplaceButton(BidaideBundle.message("github.list.refresh"), AllIcons.Actions.Refresh) { session.refresh() }
+        val reload = InplaceButton(BidaideBundle.message("github.review.reload.tooltip"), AllIcons.Actions.ForceRefresh) {
+            frame.close()
+            PrReviewDiff.reopen(project, session.number)
         }
         scopeCombo.renderer = SimpleListCellRenderer.create("") { commit ->
             if (commit === allChanges) BidaideBundle.message("github.review.allChanges") else "${commit.oid.take(7)}  ${commit.messageHeadline.take(70)}"
@@ -142,13 +163,18 @@ class PrReviewWindow(private val session: PrReviewSession) {
         scopeCombo.toolTipText = BidaideBundle.message("github.review.scope.tooltip")
         scopeCombo.isVisible = scopeCombo.itemCount > 2
         scopeCombo.addActionListener { chooseScope(scopeCombo.item?.takeIf { it !== allChanges }) }
-        return JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(6), JBUI.scale(4))).apply {
-            add(submitButton)
-            add(discardButton)
-            add(refresh)
-            add(reload)
-            add(scopeCombo)
-            add(summary)
+        summary.foreground = UIUtil.getContextHelpForeground()
+        return JPanel(BorderLayout()).apply {
+            border = JBUI.Borders.compound(JBUI.Borders.customLineBottom(JBUI.CurrentTheme.ToolWindow.headerBorderBackground()), JBUI.Borders.empty(2, 4))
+            add(JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), JBUI.scale(4))).apply {
+                add(scopeCombo)
+                add(summary)
+            }, BorderLayout.CENTER)
+            add(JPanel(FlowLayout(FlowLayout.RIGHT, JBUI.scale(8), JBUI.scale(4))).apply {
+                add(refresh)
+                add(reload)
+                add(submitButton)
+            }, BorderLayout.EAST)
         }
     }
 
@@ -215,7 +241,9 @@ class PrReviewWindow(private val session: PrReviewSession) {
     private fun refresh() {
         val pending = session.pendingCount
         submitButton.text = if (session.hasPendingReview) BidaideBundle.message("github.review.submitPending", pending) else BidaideBundle.message("github.review.submit")
-        discardButton.isVisible = session.hasPendingReview
+        // Blue while there is something waiting to be sent, like the IDE's own “Submit (1)…”.
+        submitButton.putClientProperty(DarculaButtonUI.DEFAULT_STYLE_KEY, session.hasPendingReview)
+        submitButton.repaint()
         val open = session.threads.count { !it.isResolved }
         val reviewed = BidaideBundle.message("github.review.summary", session.viewedCount, session.files.size, open, session.threads.size)
         summary.text = scope.commit?.let { BidaideBundle.message("github.review.commitSummary", it.oid.take(7), scope.files.size, reviewed) } ?: reviewed
@@ -260,14 +288,17 @@ class PrReviewWindow(private val session: PrReviewSession) {
                             else -> FileStatus.MODIFIED
                         }
                         append(name, SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, status.color))
+                        append("  +${file.additions} −${file.deletions}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
                         if (scope.interactive) {
-                            if (session.isViewed(file.filename)) append("  ✓ visto", SimpleTextAttributes.GRAYED_ATTRIBUTES)
                             // Partly reviewed: how many of its changes are ticked off.
                             session.hunkProgress(file.filename)?.let { append("  ◐ $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
                             val count = session.threadCount(file.filename)
                             if (count > 0) append("  💬 $count", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                            // Not viewed yet: the blue dot of the IDE's own pull request view.
+                            val viewed = session.isViewed(file.filename)
+                            if (!viewed) append("  ●", SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, JBUI.CurrentTheme.Link.Foreground.ENABLED))
+                            toolTipText = BidaideBundle.message(if (viewed) "github.review.file.viewed" else "github.review.file.notViewed")
                         }
-                        append("  +${file.additions} −${file.deletions}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
                     }
                     is String -> {
                         icon = AllIcons.Nodes.Folder
@@ -337,22 +368,22 @@ class PrReviewWindow(private val session: PrReviewSession) {
     // --- Review ---
 
     private fun submitReview() {
-        val dialog = SubmitReviewDialog(session)
-        if (!dialog.showAndGet()) return
-        val event = dialog.event
-        val args = if (session.hasPendingReview) {
-            GhReviewCommands.submitPending(session.state.pullRequestId, event, dialog.body)
-        } else {
-            val kind = when (event) {
-                ReviewEvent.APPROVE -> ReviewKind.APPROVE
-                ReviewEvent.REQUEST_CHANGES -> ReviewKind.REQUEST_CHANGES
-                ReviewEvent.COMMENT -> ReviewKind.COMMENT
+        SubmitReviewPopup(session, ::discardReview) { event, body, done ->
+            val args = if (session.hasPendingReview) {
+                GhReviewCommands.submitPending(session.state.pullRequestId, event, body)
+            } else {
+                val kind = when (event) {
+                    ReviewEvent.APPROVE -> ReviewKind.APPROVE
+                    ReviewEvent.REQUEST_CHANGES -> ReviewKind.REQUEST_CHANGES
+                    ReviewEvent.COMMENT -> ReviewKind.COMMENT
+                }
+                GhCommands.prReview(session.number, kind, body)
             }
-            GhCommands.prReview(session.number, kind, dialog.body)
-        }
-        session.mutate(BidaideBundle.message("github.pr.review.task", session.number), args) { ok ->
-            if (ok) Notifier.info(project, "GitHub", BidaideBundle.message("github.review.sent", session.number, event.label.lowercase()))
-        }
+            session.mutate(BidaideBundle.message("github.pr.review.task", session.number), args) { ok ->
+                if (ok) Notifier.info(project, "GitHub", BidaideBundle.message("github.review.sent", session.number, event.label.lowercase()))
+                done(ok)
+            }
+        }.show(submitButton)
     }
 
     private fun discardReview() {
@@ -366,37 +397,89 @@ class PrReviewWindow(private val session: PrReviewSession) {
     }
 }
 
-private class SubmitReviewDialog(private val session: PrReviewSession) : DialogWrapper(session.project) {
-    private val eventCombo = ComboBox(ReviewEvent.entries.toTypedArray()).apply {
-        renderer = SimpleListCellRenderer.create("") { it.label }
-    }
-    private val area = JBTextArea(8, 60).apply {
+/** The review form hanging from the submit button: a summary and one button per verdict, as in the IDE's own review. */
+private class SubmitReviewPopup(
+    private val session: PrReviewSession,
+    private val onDiscard: () -> Unit,
+    private val onSubmit: (event: ReviewEvent, body: String, done: (Boolean) -> Unit) -> Unit,
+) {
+    private val area = JBTextArea(5, 44).apply {
         lineWrap = true
         wrapStyleWord = true
+        emptyText.text = BidaideBundle.message("github.review.summaryPlaceholder")
+        border = JBUI.Borders.empty(4, 6)
+    }
+    private val error = JBLabel().apply {
+        foreground = UIUtil.getErrorForeground()
+        isVisible = false
+    }
+    private val buttons = ArrayList<JButton>()
+    private var popup: JBPopup? = null
+
+    fun show(anchor: JComponent) {
+        // GitHub only lets the author of a pull request comment on it, not approve it or ask for changes.
+        val own = session.viewerLogin != null && session.viewerLogin.equals(session.pr.author?.login, ignoreCase = true)
+        val events = if (own) listOf(ReviewEvent.COMMENT) else listOf(ReviewEvent.APPROVE, ReviewEvent.REQUEST_CHANGES, ReviewEvent.COMMENT)
+        val bar = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(6), 0)).apply {
+            isOpaque = false
+            for (event in events) add(JButton(event.label).also { button ->
+                if (event == events.first()) button.putClientProperty(DarculaButtonUI.DEFAULT_STYLE_KEY, true)
+                button.addActionListener { send(event) }
+                buttons += button
+            })
+        }
+        val footer = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            border = JBUI.Borders.emptyTop(8)
+            add(bar, BorderLayout.WEST)
+            if (session.hasPendingReview) add(ActionLink(BidaideBundle.message("github.review.discard")) {
+                popup?.cancel()
+                onDiscard()
+            }, BorderLayout.EAST)
+        }
+        val content = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            border = JBUI.Borders.empty(10, 12)
+            add(JBLabel("<html><b>${Html.esc(BidaideBundle.message("github.review.submitTitle", session.number))}</b></html>").leftAligned())
+            if (session.hasPendingReview) add(JBLabel(BidaideBundle.message("github.review.willPublish", session.pendingCount)).apply {
+                foreground = UIUtil.getContextHelpForeground()
+            }.leftAligned())
+            add(JBScrollPane(area).apply { border = JBUI.Borders.compound(JBUI.Borders.emptyTop(8), JBUI.Borders.customLine(JBColor.border(), 1)) }.leftAligned())
+            add(error.apply { border = JBUI.Borders.emptyTop(4) }.leftAligned())
+            add(footer.leftAligned())
+        }
+        val created = JBPopupFactory.getInstance().createComponentPopupBuilder(content, area)
+            .setRequestFocus(true)
+            .setFocusable(true)
+            .setMovable(true)
+            .setCancelOnClickOutside(true)
+            .setCancelKeyEnabled(true)
+            .createPopup()
+        popup = created
+        created.showUnderneathOf(anchor)
     }
 
-    val event: ReviewEvent get() = eventCombo.item
-    val body: String get() = area.text.trim()
-
-    init {
-        title = BidaideBundle.message("github.review.submitTitle", session.number)
-        setOKButtonText(BidaideBundle.message("github.review.send"))
-        init()
+    private fun send(event: ReviewEvent) {
+        val body = area.text.trim()
+        val problem = when {
+            event == ReviewEvent.REQUEST_CHANGES && body.isEmpty() -> BidaideBundle.message("github.review.changesNeedComment")
+            // A bare "comment" review only makes sense when it publishes pending inline comments.
+            event == ReviewEvent.COMMENT && body.isEmpty() && session.pendingCount == 0 -> BidaideBundle.message("github.review.writeComment")
+            else -> null
+        }
+        error.text = problem.orEmpty()
+        error.isVisible = problem != null
+        if (problem != null) {
+            popup?.pack(true, true)
+            return
+        }
+        setBusy(true)
+        onSubmit(event, body) { ok -> if (ok) popup?.cancel() else setBusy(false) }
     }
 
-    override fun createCenterPanel(): JComponent = panel {
-        row(BidaideBundle.message("github.review.verdict")) { cell(eventCombo) }
-        if (session.hasPendingReview) row { label(BidaideBundle.message("github.review.willPublish", session.pendingCount)) }
-        row { cell(JBScrollPane(area)).align(Align.FILL) }.resizableRow()
-    }
-
-    override fun getPreferredFocusedComponent() = area
-
-    override fun doValidate(): ValidationInfo? = when {
-        event == ReviewEvent.REQUEST_CHANGES && body.isEmpty() -> ValidationInfo(BidaideBundle.message("github.review.changesNeedComment"), area)
-        // A bare "comment" review only makes sense when it publishes pending inline comments.
-        event == ReviewEvent.COMMENT && body.isEmpty() && session.pendingCount == 0 -> ValidationInfo(BidaideBundle.message("github.review.writeComment"), area)
-        else -> null
+    private fun setBusy(busy: Boolean) {
+        buttons.forEach { it.isEnabled = !busy }
+        area.isEnabled = !busy
     }
 }
 

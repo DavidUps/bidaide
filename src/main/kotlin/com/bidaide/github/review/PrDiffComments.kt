@@ -4,6 +4,7 @@ import com.bidaide.BidaideBundle
 import com.bidaide.Notifier
 import com.bidaide.gh.GhCommands
 import com.bidaide.gh.GhReviewCommands
+import com.bidaide.gh.GhReviewThread
 import com.intellij.diff.DiffContext
 import com.intellij.diff.DiffExtension
 import com.intellij.diff.FrameDiffTool
@@ -24,6 +25,9 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.Inlay
 import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.editor.ScrollType
+import com.intellij.openapi.editor.event.EditorMouseEvent
+import com.intellij.openapi.editor.event.EditorMouseListener
+import com.intellij.openapi.editor.event.EditorMouseMotionListener
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.impl.EditorEmbeddedComponentManager
 import com.intellij.openapi.editor.markup.GutterIconRenderer
@@ -46,6 +50,7 @@ class PrReviewDiffExtension : DiffExtension() {
         val controller = PrDiffCommentsController(viewer, review)
         if (controller.editors.isEmpty()) return
         controller.editors.forEach { it.putUserData(PrDiffCommentsController.KEY, controller) }
+        controller.installHover()
         // Viewers finish computing (and the unified one rebuilds its document) asynchronously; draw after each pass.
         viewer.addListener(object : DiffViewerListener() {
             override fun onAfterRediff() = controller.render()
@@ -71,17 +76,104 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
     fun render() {
         inlays.forEach(Disposer::dispose)
         inlays.clear()
+        threadMarks.forEach { it.dispose() }
+        threadMarks.clear()
+        clearHover()
         val scrollTarget = session.scrollToThreadId
+        val byLine = LinkedHashMap<Pair<EditorEx, Int>, MutableList<GhReviewThread>>()
         for (thread in session.liveThreads(review.file.filename)) {
             val (editor, line) = locate(sideOf(thread.side), thread.line ?: continue) ?: continue
+            byLine.getOrPut(editor to line) { ArrayList() } += thread
             if (thread.id == scrollTarget) {
                 ui.expandedResolved += thread.id
+                ui.collapsed -= thread.id
                 session.scrollToThreadId = null
                 editor.scrollingModel.scrollTo(LogicalPosition(line, 0), ScrollType.CENTER)
             }
+            if (thread.id in ui.collapsed) continue
             addInlay(editor, line, ThreadPanels.build(session, thread, ui, cardWidth(editor), ::render))?.let(inlays::add)
         }
+        for ((place, threads) in byLine) addThreadMark(place.first, place.second, threads)
         renderHunks()
+    }
+
+    // --- A balloon in the gutter of every line with comments, to fold them away and back ---
+
+    private val threadMarks = ArrayList<RangeHighlighter>()
+
+    private fun addThreadMark(editor: EditorEx, line: Int, threads: List<GhReviewThread>) {
+        if (editor.isDisposed) return
+        editor.settings.isLineMarkerAreaShown = true
+        val ids = threads.map { it.id }
+        val folded = ids.all { it in ui.collapsed }
+        val mark = editor.markupModel.addLineHighlighter(line, HighlighterLayer.LAST, null)
+        mark.gutterIconRenderer = GutterAction(
+            AllIcons.General.Balloon,
+            BidaideBundle.message(if (folded) "github.review.thread.show" else "github.review.thread.hide", threads.sumOf { it.comments.size }),
+            GutterIconRenderer.Alignment.CENTER, "thread:$line:$folded",
+        ) {
+            if (folded) ui.collapsed -= ids.toSet() else ui.collapsed += ids
+            render()
+        }
+        threadMarks += mark
+    }
+
+    // --- A "+" in the gutter of the commentable line under the mouse, as on github.com ---
+
+    private var hoverMark: RangeHighlighter? = null
+    private var hoverAt: Pair<EditorEx, Int>? = null
+
+    fun installHover() {
+        for (editor in editors) {
+            editor.settings.isLineMarkerAreaShown = true
+            editor.addEditorMouseMotionListener(object : EditorMouseMotionListener {
+                override fun mouseMoved(e: EditorMouseEvent) = hover(editor, e)
+            }, viewer)
+            editor.addEditorMouseListener(object : EditorMouseListener {
+                override fun mouseExited(e: EditorMouseEvent) = clearHover()
+            }, viewer)
+        }
+    }
+
+    private fun hover(editor: EditorEx, e: EditorMouseEvent) {
+        val line = e.logicalPosition.line
+        if (hoverAt == editor to line) return
+        clearHover()
+        if (line !in 0 until editor.document.lineCount) return
+        val target = position(editor, line) ?: return
+        if (!review.commentable.contains(target.first, target.second)) return
+        val mark = editor.markupModel.addLineHighlighter(line, HighlighterLayer.LAST, null)
+        mark.gutterIconRenderer = GutterAction(
+            AllIcons.General.InlineAdd, BidaideBundle.message("action.Bidaide.Pr.AddComment.text"), GutterIconRenderer.Alignment.RIGHT, "add:$line",
+        ) { startComment(editor, line) }
+        hoverMark = mark
+        hoverAt = editor to line
+    }
+
+    private fun clearHover() {
+        hoverMark?.dispose()
+        hoverMark = null
+        hoverAt = null
+    }
+
+    private class GutterAction(
+        private val icon: Icon, private val tooltip: String, private val alignment: GutterIconRenderer.Alignment, private val id: String, private val onClick: () -> Unit,
+    ) : GutterIconRenderer() {
+        override fun getIcon() = icon
+
+        override fun getTooltipText() = tooltip
+
+        override fun isNavigateAction() = true
+
+        override fun getAlignment() = alignment
+
+        override fun getClickAction(): AnAction = object : AnAction() {
+            override fun actionPerformed(e: AnActionEvent) = onClick()
+        }
+
+        override fun equals(other: Any?) = other is GutterAction && other.id == id
+
+        override fun hashCode() = id.hashCode()
     }
 
     // --- A checkbox in the gutter beside every change, as in the commit dialog, to tick changes off one by one ---
@@ -142,18 +234,23 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
         override fun hashCode() = key.hashCode() * 31 + viewed.hashCode()
     }
 
-    /** Opens a comment box under the caret line (or the selected lines) of [editor]. */
-    fun startComment(editor: Editor) {
+    /**
+     * Opens a comment box under [line] (by default the caret line) of [editor], or under the selected lines when the
+     * selection covers it.
+     */
+    fun startComment(editor: Editor, line: Int? = null) {
         if (editor !is EditorEx || editor !in editors) return
         val document = editor.document
         val selection = editor.selectionModel
-        val caretLine = editor.caretModel.logicalPosition.line
-        val firstLine = if (selection.hasSelection()) document.getLineNumber(selection.selectionStart) else caretLine
-        val lastLine = if (selection.hasSelection()) {
-            document.getLineNumber(maxOf(selection.selectionStart, selection.selectionEnd - 1))
+        val selected = if (selection.hasSelection()) {
+            document.getLineNumber(selection.selectionStart)..document.getLineNumber(maxOf(selection.selectionStart, selection.selectionEnd - 1))
         } else {
-            caretLine
+            null
         }
+        val target = line ?: editor.caretModel.logicalPosition.line
+        val lines = selected?.takeIf { target in it } ?: target..target
+        val firstLine = lines.first
+        val lastLine = lines.last
         val end = position(editor, lastLine)
         val start = position(editor, firstLine)
         if (end == null || !review.commentable.contains(end.first, end.second)) {
@@ -191,7 +288,7 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
             session.mutate(BidaideBundle.message("github.pr.comment.task", session.number), args, finish(done))
         }
         // GitHub refuses standalone comments while a pending review exists.
-        val submits = if (session.hasPendingReview) arrayOf(toReview) else arrayOf(now, toReview)
+        val submits = if (session.hasPendingReview) arrayOf(toReview) else arrayOf(toReview, now)
 
         closeDraft()
         val label = if (startLine != null && startLine != end.second) {
@@ -200,7 +297,8 @@ class PrDiffCommentsController(private val viewer: DiffViewerBase, private val r
             BidaideBundle.message("github.review.line", end.second)
         }
         val panel = InputPanel(
-            BidaideBundle.message("github.review.newComment", label), cardWidth(editor), suggestionSeed = seed, onCancel = ::closeDraft, submits = submits,
+            cardWidth(editor), session.viewerLogin, BidaideBundle.message("github.review.newComment", label),
+            suggestionSeed = seed, onCancel = ::closeDraft, submits = submits,
         )
         draft = addInlay(editor, lastLine, panel)
         panel.focusLater()
