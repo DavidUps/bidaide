@@ -150,7 +150,7 @@ class AvatarIcon(private val login: String, private val size: Int) : Icon {
  * `[avatar] login suffix`. Shows the placeholder at once and swaps in the picture when it arrives; a picture that
  * never arrives just leaves the placeholder.
  */
-class UserChip(user: GitHubUser, private val suffix: String = "", size: Int = DEFAULT_SIZE) : JLabel() {
+class UserChip(user: GitHubUser, private val suffix: String = "", size: Int = DEFAULT_SIZE, showLogin: Boolean = true) : JLabel() {
     private val avatar = AvatarIcon(user.login, size)
     private val pixels = size * 2 // enough for HiDPI screens
     private var shownUrl: String? = null
@@ -160,7 +160,7 @@ class UserChip(user: GitHubUser, private val suffix: String = "", size: Int = DE
 
     init {
         icon = avatar
-        text = if (suffix.isEmpty()) user.login else "<html>${Html.esc(user.login)} <font color=\"gray\">${Html.esc(suffix)}</font></html>"
+        text = if (!showLogin) null else if (suffix.isEmpty()) user.login else "<html>${Html.esc(user.login)} <font color=\"gray\">${Html.esc(suffix)}</font></html>"
         iconTextGap = size / 3
         toolTipText = user.login
         show(user)

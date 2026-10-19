@@ -37,6 +37,7 @@ class PrReviewSession(
     val number: Int get() = pr.number
     val threads: List<GhReviewThread> get() = state.threads
     val hasPendingReview: Boolean get() = state.pendingReviewId != null
+    val viewerLogin: String? get() = state.viewerLogin
     val pendingCount: Int get() = threads.sumOf { thread -> thread.comments.count { it.pending } }
 
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
