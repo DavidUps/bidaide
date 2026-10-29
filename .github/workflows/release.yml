@@ -1,6 +1,7 @@
 name: Release
 
-# Push a tag like v0.2.0: build -> GitHub Release with the zip -> bump the cask in DavidUps/homebrew-tap.
+# Push a tag like v0.2.0: build -> GitHub Release with the zips -> bump the cask in DavidUps/homebrew-tap.
+# Users install the latest release with install.sh or Homebrew; see the README.
 on:
   push:
     tags: ['v*']
@@ -31,16 +32,27 @@ jobs:
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           OUTPUT=$(scripts/package.sh "$VERSION")
-          echo "zip=$(echo "$OUTPUT" | tail -2 | head -1)" >> "$GITHUB_OUTPUT"
+          ZIP=$(echo "$OUTPUT" | tail -2 | head -1)
+          # Same file under a fixed name, so releases/latest/download/BidaideNotificator.zip always works.
+          cp "$ZIP" build/BidaideNotificator.zip
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
           echo "sha=$(echo "$OUTPUT" | tail -1)" >> "$GITHUB_OUTPUT"
 
       - name: GitHub Release
         run: |
           TAG="v${{ steps.build.outputs.version }}"
+          FILES=("${{ steps.build.outputs.zip }}" build/BidaideNotificator.zip)
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${{ steps.build.outputs.zip }}" --clobber
+            gh release upload "$TAG" "${FILES[@]}" --clobber
           else
-            gh release create "$TAG" "${{ steps.build.outputs.zip }}" --title "$TAG" --generate-notes
+            gh release create "$TAG" "${FILES[@]}" --title "$TAG" --generate-notes --notes "$(cat <<'NOTES'
+          Instalar o actualizar:
+
+          ```sh
+          curl -fsSL https://raw.githubusercontent.com/DavidUps/bidaide/main/install.sh | sh
+          ```
+          NOTES
+          )"
           fi
 
       - name: Bump Homebrew cask

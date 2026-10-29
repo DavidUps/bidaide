@@ -1,0 +1,25 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          brew install xcodegen
+          xcodegen generate --quiet
+          xcodebuild -project BidaideNotificator.xcodeproj -scheme BidaideNotificator -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData -quiet build
+      - name: Check install.sh
+        run: sh -n install.sh

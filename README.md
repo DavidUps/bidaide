@@ -15,16 +15,28 @@ Todo pasa por la [GitHub CLI](https://cli.github.com): usa la sesión de `gh aut
 - **Notificaciones**: revisión pedida, asignación, comentario, mención, actividad en tus PR y, opcionalmente,
   fusiones/cierres y CI. Muestran autor y texto del comentario; clic abre el comentario. Acción «Marcar como leída».
   La primera consulta no notifica lo que ya estaba sin leer, y nunca avisa de lo que haces tú.
-- **Widget** (pequeño, mediano, grande y extragrande): «Todo lo pendiente» o una sección concreta, a elegir
-  editando el widget.
+- **Widgets** (pequeño, mediano, grande y extragrande):
+  - **Pull requests**: «Todo lo pendiente» o una sección concreta, a elegir editando el widget.
+  - **GitHub Actions**: tus workflows en curso con el tiempo que llevan, los que fallan y el historial reciente.
+- **GitHub Actions**: los runs que lanzas tú en los repos de tus PR abiertas y en los que has hecho push en las
+  últimas dos semanas. Aparecen en el menú y avisan cuando uno falla.
 
 ## Instalar
 
 Requisitos: macOS 14+ y `gh` con sesión iniciada (`gh auth login`).
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/DavidUps/bidaide/main/install.sh | sh
+```
+
+Descarga la última [release](https://github.com/DavidUps/bidaide/releases/latest), la instala en `/Applications`
+(o en `~/Applications` si no tienes permisos), instala `gh` con Homebrew si falta y abre la app. Vuelve a
+ejecutarlo para actualizar.
+
+Con Homebrew:
+
+```sh
 brew install --cask davidups/tap/bidaide-notificator
-open -a "Bidaide Notificator"
 ```
 
 Actualizar: `brew upgrade --cask bidaide-notificator`. Desinstalar: `brew uninstall --cask --zap bidaide-notificator`.
@@ -32,7 +44,7 @@ Actualizar: `brew upgrade --cask bidaide-notificator`. Desinstalar: `brew uninst
 Desde el código (necesita Xcode):
 
 ```sh
-./scripts/install.sh            # compila en Release, copia a ~/Applications y la abre
+./scripts/install-from-source.sh   # compila en Release, copia a ~/Applications y la abre
 ```
 
 Después: clic derecho en el escritorio → *Editar widgets* → busca «Pull requests». Para arrancar con el Mac,
@@ -59,10 +71,16 @@ con un equipo de Apple se podría cambiar a un App Group.
 
 ## Publicar una versión
 
+Sube `MARKETING_VERSION` en `project.yml` y crea el tag:
+
 ```sh
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-El workflow `Release` compila, sube `BidaideNotificator-<versión>.zip` a la GitHub Release y actualiza el cask en
-[DavidUps/homebrew-tap](https://github.com/DavidUps/homebrew-tap) si existe el secreto `TAP_TOKEN` (token con
-permiso de escritura sobre ese repo). Sin él, actualiza `version` y `sha256` a mano con `scripts/package.sh <versión>`.
+El workflow `Release` compila y publica la GitHub Release con `BidaideNotificator-<versión>.zip` y
+`BidaideNotificator.zip` (nombre fijo, el que descarga `install.sh`). Si existe el secreto `TAP_TOKEN` (token con
+permiso de escritura sobre [DavidUps/homebrew-tap](https://github.com/DavidUps/homebrew-tap)), actualiza también el
+cask; si no, actualiza `version` y `sha256` a mano con `scripts/package.sh <versión>`. El workflow `Build` compila
+cada push a `main` y cada pull request.
+
+El icono sale del logo del plugin (`packaging/icon/glyph.svg`); para regenerarlo: `swift scripts/make-icon.swift`.
