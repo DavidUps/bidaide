@@ -1,0 +1,67 @@
+name: BidaideNotificator
+options:
+  bundleIdPrefix: com.bidaide
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    GENERATE_INFOPLIST_FILE: NO
+targets:
+  BidaideNotificator:
+    type: application
+    platform: macOS
+    sources: [App, Shared]
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Bidaide Notificator
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: © 2026 David Arribas
+        CFBundleURLTypes:
+          - CFBundleURLName: com.bidaide.notificator
+            CFBundleURLSchemes: [bidaidenotificator]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bidaide.notificator
+        PRODUCT_NAME: Bidaide Notificator
+    dependencies:
+      - target: BidaideWidget
+        embed: true
+  BidaideWidget:
+    type: app-extension
+    platform: macOS
+    sources: [Widget, Shared]
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Bidaide PR
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widget/Widget.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        # The widget cannot run gh; it only reads the snapshot the app writes.
+        com.apple.security.temporary-exception.files.home-relative-path.read-only:
+          - /Library/Application Support/BidaideNotificator/
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bidaide.notificator.widget
+        PRODUCT_NAME: BidaideWidget
+        SKIP_INSTALL: YES
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework

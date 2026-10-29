@@ -1,0 +1,58 @@
+name: Release
+
+# Push a tag like v0.2.0: build -> GitHub Release with the zip -> bump the cask in DavidUps/homebrew-tap.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without the leading v (e.g. 0.2.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ inputs.version || github.ref_name }}
+      # The cask bump is skipped until TAP_TOKEN (a token with write access to homebrew-tap) exists.
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and zip
+        id: build
+        run: |
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          OUTPUT=$(scripts/package.sh "$VERSION")
+          echo "zip=$(echo "$OUTPUT" | tail -2 | head -1)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(echo "$OUTPUT" | tail -1)" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Release
+        run: |
+          TAG="v${{ steps.build.outputs.version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${{ steps.build.outputs.zip }}" --clobber
+          else
+            gh release create "$TAG" "${{ steps.build.outputs.zip }}" --title "$TAG" --generate-notes
+          fi
+
+      - name: Bump Homebrew cask
+        if: env.TAP_TOKEN != ''
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/DavidUps/homebrew-tap.git" tap
+          sed -e 's/^  version ".*"/  version "${{ steps.build.outputs.version }}"/' \
+              -e 's/^  sha256 ".*"/  sha256 "${{ steps.build.outputs.sha }}"/' \
+              packaging/bidaide-notificator.rb > tap/Casks/bidaide-notificator.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/bidaide-notificator.rb
+          git commit -m "bidaide-notificator ${{ steps.build.outputs.version }}" || exit 0
+          git push
