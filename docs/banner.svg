@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-label="Bidaide Notificator: tus pull requests y GitHub Actions en la barra de menú del Mac">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="0.55" stop-color="#111a33"/>
+      <stop offset="1" stop-color="#1a1440"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7376fa"/>
+      <stop offset="1" stop-color="#3fb950"/>
+    </linearGradient>
+    <radialGradient id="glowIndigo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7376fa" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#7376fa" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGreen" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3fb950" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#29303d"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="400" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="400" rx="24" fill="url(#grid)"/>
+  <circle cx="1120" cy="60" r="320" fill="url(#glowIndigo)"/>
+  <circle cx="260" cy="420" r="260" fill="url(#glowGreen)"/>
+
+  <!-- App icon -->
+  <rect x="96" y="84" width="232" height="232" rx="52" fill="url(#tile)" stroke="#ffffff" stroke-opacity="0.1" stroke-width="2"/>
+  <g transform="translate(120 108) scale(0.36)">
+    <path fill="#E6EDF3" d="M264.18 32L291.77 59.59L291.77 162.47L297.85 162L311.88 156.39L326.85 148.44L346.49 135.82L347.42 134.41L360.99 125.06L375.01 112.43L375.95 112.43L378.76 109.16L379.69 109.16L407.75 82.04L407.75 138.15L378.76 162.94L368.94 169.49L364.26 173.7L359.11 176.5L358.18 177.9L341.81 188.19L310.95 203.62L289.9 211.11L274.94 215.32L273.54 217.65L272.6 223.27L271.67 255.53L271.67 265.35L292.24 273.77L317.03 285.93L347.89 304.63L348.83 306.04L361.45 314.46L373.61 325.21L374.55 325.21L376.89 328.02L377.82 328.02L407.75 357.95L407.75 416.4L403.54 412.66L403.54 411.72L385.3 392.08L385.3 391.15L378.76 385.07L378.76 384.13L361.92 367.3L360.99 367.3L355.84 361.69L354.91 361.69L345.55 352.8L344.62 352.8L331.06 341.58L314.22 330.35L301.13 323.81L300.66 322.87L291.77 320.07L291.77 452.88L264.65 480L263.72 480L257.17 472.99L256.23 472.99L255.3 471.11L236.59 452.88L236.59 370.1L234.25 360.75L231.92 356.54L221.16 345.79L220.23 345.79L217.42 342.51L216.48 342.51L214.15 339.71L213.21 339.71L205.26 332.23L194.04 323.81L192.17 321.47L186.56 317.73L184.68 315.39L183.75 315.39L149.61 287.33L134.18 276.11L119.68 263.95L115.01 261.14L113.14 258.81L104.25 252.73L104.25 251.79L151.95 216.72L153.35 214.85L167.85 204.56L171.59 200.82L174.4 199.42L175.8 197.54L184.68 191.47L188.43 187.72L191.23 186.32L194.97 182.58L197.78 181.18L201.52 177.44L204.33 176.03L208.07 172.29L222.56 161.54L222.56 187.26L221.16 195.21L219.29 198.95L215.08 203.16L214.15 203.16L199.65 215.78L198.71 215.78L196.84 218.12L193.57 219.99L191.7 222.33L174.86 234.96L168.78 240.57L165.98 241.97L162.24 245.71L159.43 247.11L158.03 249.45L181.88 269.09L189.36 274.24L190.76 276.11L204.33 285.93L205.73 287.8L236.59 310.71L236.59 59.59Z"/>
+  </g>
+
+  <!-- Title -->
+  <text x="384" y="176" fill="#f0f6fc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="68" font-weight="700" letter-spacing="-1">Bidaide Notificator</text>
+  <rect x="388" y="200" width="120" height="6" rx="3" fill="url(#accent)"/>
+  <text x="386" y="256" fill="#9da7b3" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28">Tus pull requests y GitHub Actions en la barra de menú del Mac.</text>
+
+  <!-- Pills -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="600">
+    <rect x="386" y="290" width="160" height="38" rx="19" fill="#7376fa" fill-opacity="0.16" stroke="#7376fa" stroke-opacity="0.5"/>
+    <text x="466" y="315" fill="#a5a8ff" text-anchor="middle">Barra de menú</text>
+    <rect x="558" y="290" width="168" height="38" rx="19" fill="#58a6ff" fill-opacity="0.14" stroke="#58a6ff" stroke-opacity="0.5"/>
+    <text x="642" y="315" fill="#79c0ff" text-anchor="middle">Notificaciones</text>
+    <rect x="738" y="290" width="110" height="38" rx="19" fill="#f0883e" fill-opacity="0.14" stroke="#f0883e" stroke-opacity="0.5"/>
+    <text x="793" y="315" fill="#ffa657" text-anchor="middle">Widgets</text>
+    <rect x="860" y="290" width="172" height="38" rx="19" fill="#3fb950" fill-opacity="0.14" stroke="#3fb950" stroke-opacity="0.5"/>
+    <text x="946" y="315" fill="#56d364" text-anchor="middle">GitHub Actions</text>
+  </g>
+</svg>

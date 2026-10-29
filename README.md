@@ -1,86 +1,70 @@
-# Bidaide Notificator
+<p align="center">
+  <img src="docs/banner.svg" alt="Bidaide Notificator: tus pull requests y GitHub Actions en la barra de menú del Mac" width="100%">
+</p>
 
-App de macOS que vive en la barra de menú y te avisa de las pull requests que esperan algo de ti.
-Todo pasa por la [GitHub CLI](https://cli.github.com): usa la sesión de `gh auth login` y no guarda tokens.
+<p align="center">
+  <a href="https://github.com/DavidUps/bidaide/releases/latest"><img alt="Última versión" src="https://img.shields.io/github/v/release/DavidUps/bidaide?style=flat-square&label=versi%C3%B3n&color=7376fa"></a>
+  <img alt="macOS 14 o posterior" src="https://img.shields.io/badge/macOS-14%2B-24292f?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Funciona con GitHub CLI" src="https://img.shields.io/badge/GitHub%20CLI-gh-24292f?style=flat-square&logo=github&logoColor=white">
+  <a href="https://github.com/DavidUps/bidaide/actions/workflows/build.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/DavidUps/bidaide/build.yml?style=flat-square&label=build"></a>
+</p>
 
-## Qué hace
+<h3 align="center">Lo que te espera en GitHub, sin abrir el navegador.</h3>
 
-- **Barra de menú**: icono con el número de PR pendientes. Al pulsarlo, lista por secciones:
-  - **Revisar**: te han pedido revisión (`review-requested`).
-  - **Responder**: tus PR con cambios pedidos o hilos sin resolver cuyo último comentario no es tuyo.
-  - **Comentadas**: notificaciones sin leer de comentarios, menciones y actividad en tus PR.
-  - **Asignadas**: PR asignadas a ti.
-  - **Mis PR**: tus PR abiertas, con checks y estado de review (se puede ocultar).
-  Clic abre la PR; clic derecho para copiar el enlace o marcar la notificación como leída.
-- **Notificaciones**: revisión pedida, asignación, comentario, mención, actividad en tus PR y, opcionalmente,
-  fusiones/cierres y CI. Muestran autor y texto del comentario; clic abre el comentario. Acción «Marcar como leída».
-  La primera consulta no notifica lo que ya estaba sin leer, y nunca avisa de lo que haces tú.
-- **Widgets** (pequeño, mediano, grande y extragrande):
-  - **Pull requests**: «Todo lo pendiente» o una sección concreta, a elegir editando el widget.
-  - **GitHub Actions**: tus workflows en curso con el tiempo que llevan, los que fallan y el historial reciente.
-- **GitHub Actions**: los runs que lanzas tú en los repos de tus PR abiertas y en los que has hecho push en las
-  últimas dos semanas. Aparecen en el menú y avisan cuando uno falla.
+<p align="center">
+  <img src="docs/widgets.png" alt="Widgets de pull requests y GitHub Actions" width="100%">
+</p>
 
 ## Instalar
-
-Requisitos: macOS 14+ y `gh` con sesión iniciada (`gh auth login`).
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/DavidUps/bidaide/main/install.sh | sh
 ```
 
-Descarga la última [release](https://github.com/DavidUps/bidaide/releases/latest), la instala en `/Applications`
-(o en `~/Applications` si no tienes permisos), instala `gh` con Homebrew si falta y abre la app. Vuelve a
-ejecutarlo para actualizar.
+Solo necesitas macOS 14 y haber iniciado sesión con `gh auth login`. Para actualizar, vuelve a ejecutarlo.
 
-Con Homebrew:
+<details>
+<summary>Con Homebrew</summary>
 
 ```sh
 brew install --cask davidups/tap/bidaide-notificator
 ```
 
-Actualizar: `brew upgrade --cask bidaide-notificator`. Desinstalar: `brew uninstall --cask --zap bidaide-notificator`.
+Actualizar: `brew upgrade --cask bidaide-notificator` · Desinstalar: `brew uninstall --cask --zap bidaide-notificator`
+</details>
 
-Desde el código (necesita Xcode):
+## Qué hace
 
-```sh
-./scripts/install-from-source.sh   # compila en Release, copia a ~/Applications y la abre
-```
+|  |  |
+|---|---|
+| 🔢 **Barra de menú** | Cuántas PR te esperan y la lista por secciones: revisar, responder, comentadas, asignadas, las tuyas y tus Actions. |
+| 🔔 **Notificaciones** | Revisiones pedidas, comentarios, menciones y Actions que fallan, con el texto del comentario y su sonido propio. |
+| 🧩 **Widgets** | *Pull requests* y *GitHub Actions*, en cuatro tamaños. Clic derecho en el escritorio → *Editar widgets*. |
+| 🔒 **Sin tokens** | Todo pasa por [GitHub CLI](https://cli.github.com) con tu sesión de `gh`; la app no guarda nada. |
 
-Después: clic derecho en el escritorio → *Editar widgets* → busca «Pull requests». Para arrancar con el Mac,
-activa «Abrir al iniciar sesión» en Ajustes.
+Clic en una PR o run para abrirla; clic derecho para copiar el enlace o marcarla como leída. En **Ajustes** eliges cada
+cuánto consultar, qué notificaciones quieres y si arranca al iniciar sesión.
 
 ## Desarrollo
 
+<details>
+<summary>Compilar, estructura y publicar versiones</summary>
+
+Necesitas Xcode y [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+
 ```sh
-xcodegen generate               # genera BidaideNotificator.xcodeproj desde project.yml
-open BidaideNotificator.xcodeproj
+xcodegen generate                    # genera el proyecto desde project.yml
+./scripts/install-from-source.sh     # compila en Release, instala en ~/Applications y la abre
 ```
 
-Estructura:
-
-- `App/`: menú, ajustes, `GhCli` (ejecuta `gh`), `GitHubService` (una consulta GraphQL de búsqueda + `/notifications`),
-  `AppModel` (sondeo, snapshot, notificaciones), `Notifier`.
-- `Widget/`: extensión WidgetKit.
+- `App/`: menú, ajustes, `GhCli` (ejecuta `gh`), `GitHubService` (PR, notificaciones y Actions), `AppModel` (sondeo y
+  notificaciones).
+- `Widget/`: los dos widgets. Están en sandbox y no pueden ejecutar `gh`: leen el
+  `~/Library/Application Support/BidaideNotificator/snapshot.json` que escribe la app.
 - `Shared/`: modelos y `SnapshotStore`.
+- Icono: `swift scripts/make-icon.swift`, a partir del logo del plugin (`packaging/icon/glyph.svg`).
 
-El widget está en sandbox y no puede ejecutar `gh`. La app escribe
-`~/Library/Application Support/BidaideNotificator/snapshot.json` en cada consulta y recarga el widget, que solo
-lee ese fichero (excepción de sandbox de solo lectura). Así funciona con firma ad-hoc, sin equipo de desarrollo;
-con un equipo de Apple se podría cambiar a un App Group.
-
-## Publicar una versión
-
-Sube `MARKETING_VERSION` en `project.yml` y crea el tag:
-
-```sh
-git tag v0.2.0 && git push origin v0.2.0
-```
-
-El workflow `Release` compila y publica la GitHub Release con `BidaideNotificator-<versión>.zip` y
-`BidaideNotificator.zip` (nombre fijo, el que descarga `install.sh`). Si existe el secreto `TAP_TOKEN` (token con
-permiso de escritura sobre [DavidUps/homebrew-tap](https://github.com/DavidUps/homebrew-tap)), actualiza también el
-cask; si no, actualiza `version` y `sha256` a mano con `scripts/package.sh <versión>`. El workflow `Build` compila
-cada push a `main` y cada pull request.
-
-El icono sale del logo del plugin (`packaging/icon/glyph.svg`); para regenerarlo: `swift scripts/make-icon.swift`.
+**Publicar:** sube `MARKETING_VERSION` en `project.yml` y crea el tag (`git tag v0.3.0 && git push origin v0.3.0`). El
+workflow `Release` compila y publica la release; si existe el secreto `TAP_TOKEN` también actualiza el cask de
+[homebrew-tap](https://github.com/DavidUps/homebrew-tap).
+</details>
