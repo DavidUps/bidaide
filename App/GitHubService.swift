@@ -139,6 +139,65 @@ enum GitHubService {
         let errors: [GraphQLError]?
     }
 
+    // MARK: Actions
+
+    /// Runs the user started, in the repos of their open PRs and the ones they pushed to lately.
+    /// GitHub has no "my runs" endpoint, so this asks each repo; a repo that fails (no access, Actions off) is skipped.
+    static func fetchRuns(login: String, prRepos: [String]) async throws -> [WorkflowRun] {
+        let data = try await GhCli.run(["api", "user/repos?sort=pushed&per_page=15"])
+        let since = Date.now.addingTimeInterval(-14 * 24 * 3600)
+        let pushed = try decoder.decode([RawRepo].self, from: data)
+            .filter { !$0.archived && ($0.pushed_at ?? .distantPast) > since }
+            .map(\.full_name)
+        var repos: [String] = []
+        for repo in prRepos + pushed where !repos.contains(repo) { repos.append(repo) }
+
+        return await withTaskGroup(of: [WorkflowRun].self) { group in
+            for repo in repos.prefix(10) {
+                group.addTask {
+                    let path = "repos/\(repo)/actions/runs?actor=\(login)&per_page=10&exclude_pull_requests=true"
+                    guard let data = try? await GhCli.run(["api", path]),
+                          let page = try? decoder.decode(RawRuns.self, from: data)
+                    else { return [] }
+                    return page.workflow_runs.map { $0.run(repo: repo) }
+                }
+            }
+            var runs: [WorkflowRun] = []
+            for await batch in group { runs += batch }
+            return Array(runs.sorted { $0.startedAt > $1.startedAt }.prefix(30))
+        }
+    }
+
+    private struct RawRepo: Decodable {
+        let full_name: String
+        let archived: Bool
+        let pushed_at: Date?
+    }
+
+    private struct RawRuns: Decodable {
+        struct Run: Decodable {
+            let id: Int
+            let name: String?
+            let display_title: String?
+            let head_branch: String?
+            let status: String?
+            let conclusion: String?
+            let run_started_at: Date?
+            let created_at: Date
+            let updated_at: Date
+            let html_url: String
+
+            func run(repo: String) -> WorkflowRun {
+                WorkflowRun(
+                    id: id, workflow: name ?? "Workflow", title: display_title ?? "", repo: repo,
+                    branch: head_branch ?? "", status: status ?? "queued", conclusion: conclusion,
+                    startedAt: run_started_at ?? created_at, updatedAt: updated_at, url: html_url
+                )
+            }
+        }
+        let workflow_runs: [Run]
+    }
+
     // MARK: Notifications
 
     /// Unread notifications about pull requests.

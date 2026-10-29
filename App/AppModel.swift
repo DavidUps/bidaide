@@ -58,6 +58,9 @@ final class AppModel: ObservableObject {
             async let bucketsRequest = GitHubService.fetchPullRequests(login: login, includeDrafts: Preferences.includeDrafts)
             async let notificationsRequest = GitHubService.fetchNotifications()
             let (buckets, notifications) = try await (bucketsRequest, notificationsRequest)
+            // Actions are a bonus: if they fail, keep the previous runs instead of failing the whole refresh.
+            let prRepos = (buckets.mine + buckets.review).map(\.repo)
+            let runs = (try? await GitHubService.fetchRuns(login: login, prRepos: prRepos)) ?? snapshot?.runs
 
             let commented = notifications.filter(\.isConversation).map { notification in
                 PullRequest(repo: notification.repo, number: notification.number, title: notification.title,
@@ -70,10 +73,12 @@ final class AppModel: ObservableObject {
                 PRSection(category: .commented, items: deduplicated(commented)),
                 PRSection(category: .assigned, items: buckets.assigned),
                 PRSection(category: .mine, items: buckets.mine),
-            ])
+            ], runs: runs)
+            let previousRuns = snapshot?.runs
             publish(next)
             lastError = nil
             await deliver(notifications, login: login)
+            deliverFinished(runs ?? [], previous: previousRuns)
         } catch {
             lastError = error.localizedDescription
             if var stale = snapshot {
@@ -89,7 +94,11 @@ final class AppModel: ObservableObject {
     }
 
     func open(_ pullRequest: PullRequest) {
-        if let url = URL(string: pullRequest.url) { NSWorkspace.shared.open(url) }
+        open(pullRequest.url)
+    }
+
+    func open(_ string: String) {
+        if let url = URL(string: string) { NSWorkspace.shared.open(url) }
     }
 
     private func currentLogin() async throws -> String {
@@ -153,6 +162,26 @@ final class AppModel: ObservableObject {
         let current = Set(notifications.map(\.id))
         self.delivered = delivered.filter { current.contains($0.key) }
         seeded = true
+    }
+
+    /// Runs that were queued or running on the previous poll and have finished now.
+    private func deliverFinished(_ runs: [WorkflowRun], previous: [WorkflowRun]?) {
+        guard let previous else { return }
+        let wasActive = Set(previous.filter(\.outcome.isActive).map(\.id))
+        for run in runs where wasActive.contains(run.id) {
+            let reason: String
+            let title: String
+            switch run.outcome {
+            case .success: (reason, title) = ("run_success", "✅ \(run.workflow) ha pasado")
+            case .failure: (reason, title) = ("run_failure", "❌ \(run.workflow) ha fallado")
+            default: continue
+            }
+            guard Preferences.notifies(reason) else { continue }
+            Notifier.shared.post(
+                id: "run-\(run.id)", title: title, subtitle: "\(run.repo) · \(run.branch)",
+                body: run.title, url: run.url, threadID: nil
+            )
+        }
     }
 
     private static func title(for reason: String, author: String) -> String? {

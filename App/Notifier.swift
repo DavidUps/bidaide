@@ -25,7 +25,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         content.subtitle = subtitle
         content.body = body
         content.sound = .default
-        content.categoryIdentifier = Self.category
+        // Only GitHub notifications can be marked as read.
+        if threadID != nil { content.categoryIdentifier = Self.category }
         content.threadIdentifier = subtitle
         content.userInfo = ["url": url, "threadID": threadID ?? ""]
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))

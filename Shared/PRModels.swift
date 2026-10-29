@@ -70,6 +70,8 @@ struct Snapshot: Codable {
     var login: String
     var sections: [PRSection]
     var error: String?
+    /// Newest first. Optional so snapshots written before Actions support still decode.
+    var runs: [WorkflowRun]?
 
     func items(_ category: PRCategory) -> [PullRequest] {
         sections.first { $0.category == category }?.items ?? []
@@ -117,7 +119,23 @@ extension Snapshot {
                             detail: "Nuevo comentario"),
             ]),
             PRSection(category: .assigned, items: []),
-            PRSection(category: .mine, items: []),
+            PRSection(category: .mine, items: [
+                PullRequest(repo: "acme/web", number: 80, title: "Modo oscuro",
+                            url: "https://github.com/acme/web/pull/80", author: "octocat", updatedAt: .now,
+                            checks: "PENDING"),
+            ]),
+        ],
+        runs: [
+            WorkflowRun(id: 3, workflow: "CI", title: "Pantalla de pago", repo: "acme/android", branch: "main",
+                        status: "in_progress", conclusion: nil, startedAt: .now.addingTimeInterval(-108),
+                        updatedAt: .now, url: "https://github.com/acme/android/actions"),
+            WorkflowRun(id: 2, workflow: "Deploy preview", title: "Arreglar login", repo: "acme/web",
+                        branch: "fix/login-redirect", status: "completed", conclusion: "success",
+                        startedAt: .now.addingTimeInterval(-600), updatedAt: .now.addingTimeInterval(-360),
+                        url: "https://github.com/acme/web/actions"),
+            WorkflowRun(id: 1, workflow: "Tests", title: "Rate limit", repo: "acme/api", branch: "feature/rate-limit",
+                        status: "completed", conclusion: "failure", startedAt: .now.addingTimeInterval(-1300),
+                        updatedAt: .now.addingTimeInterval(-1080), url: "https://github.com/acme/api/actions"),
         ]
     )
 }

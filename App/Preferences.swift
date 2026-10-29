@@ -23,6 +23,8 @@ struct NotificationReason: Identifiable {
         .init(id: "author", label: "Actividad en mis PR (reviews, comentarios)", enabledByDefault: true),
         .init(id: "state_change", label: "Una PR se fusiona o se cierra", enabledByDefault: false),
         .init(id: "ci_activity", label: "Actividad de CI", enabledByDefault: false),
+        .init(id: "run_failure", label: "Falla una de mis GitHub Actions", enabledByDefault: true),
+        .init(id: "run_success", label: "Termina bien una de mis GitHub Actions", enabledByDefault: false),
     ]
 }
 
