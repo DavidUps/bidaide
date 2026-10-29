@@ -13,7 +13,7 @@ cask "bidaide-notificator" do
   end
 
   depends_on formula: "gh"
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Bidaide Notificator.app"
 
