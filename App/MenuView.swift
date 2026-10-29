@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuView: View {
     @EnvironmentObject private var model: AppModel
     @AppStorage(SettingsKey.showMineInMenu) private var showMine = true
+    @State private var listHeight: CGFloat = 300
 
     private var categories: [PRCategory] {
         PRCategory.allCases.filter { $0.needsAction || showMine }
@@ -52,25 +53,36 @@ struct MenuView: View {
     private var content: some View {
         if let snapshot = model.snapshot {
             let visible = categories.filter { !snapshot.items($0).isEmpty }
-            if visible.isEmpty {
+            let runs = Array(snapshot.workflowRuns.prefix(8))
+            if visible.isEmpty && runs.isEmpty {
                 EmptyState()
             } else {
+                // A ScrollView has no height of its own inside a MenuBarExtra window, so it would collapse to
+                // zero: measure the list and give the scroll view that height, up to a limit.
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
+                    VStack(alignment: .leading, spacing: 0) {
                         ForEach(visible) { category in
-                            Section {
-                                ForEach(snapshot.items(category)) { pr in
-                                    PRRow(pullRequest: pr) { model.open(pr) }
-                                        .contextMenu { RowMenu(pullRequest: pr) }
-                                }
-                            } header: {
-                                SectionHeader(category: category, count: snapshot.items(category).count)
+                            SectionHeader(title: category.title, symbol: category.symbol,
+                                          count: snapshot.items(category).count)
+                            ForEach(snapshot.items(category)) { pr in
+                                PRRow(pullRequest: pr) { model.open(pr) }
+                                    .contextMenu { RowMenu(pullRequest: pr) }
+                            }
+                        }
+                        if !runs.isEmpty {
+                            SectionHeader(title: "Actions", symbol: "play.circle", count: snapshot.activeRuns.count)
+                            ForEach(runs) { run in
+                                RunRow(run: run) { model.open(run.url) }
                             }
                         }
                     }
                     .padding(.bottom, 6)
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: ListHeightKey.self, value: proxy.size.height)
+                    })
                 }
-                .frame(maxHeight: 520)
+                .frame(height: min(max(listHeight, 60), 520))
+                .onPreferenceChange(ListHeightKey.self) { listHeight = $0 }
             }
         } else {
             VStack(spacing: 8) {
@@ -108,13 +120,14 @@ struct MenuView: View {
 }
 
 private struct SectionHeader: View {
-    let category: PRCategory
+    let title: String
+    let symbol: String
     let count: Int
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: category.symbol).foregroundStyle(.tint)
-            Text(category.title).font(.subheadline.weight(.semibold))
+            Image(systemName: symbol).foregroundStyle(.tint)
+            Text(title).font(.subheadline.weight(.semibold))
             Text("\(count)")
                 .font(.caption2.weight(.semibold))
                 .padding(.horizontal, 6).padding(.vertical, 1)
@@ -195,6 +208,46 @@ struct PRRow: View {
     }
 }
 
+private struct RunRow: View {
+    let run: WorkflowRun
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        let outcome = run.outcome
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: outcome.symbol)
+                    .foregroundStyle(outcome.color)
+                    .frame(width: 14)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(run.workflow).lineLimit(1)
+                    Text("\(run.repo) · \(run.branch)")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(outcome.label).font(.caption.weight(.semibold)).foregroundStyle(outcome.color)
+                    if outcome == .running {
+                        Text(run.startedAt, style: .timer).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                    } else {
+                        Text(run.updatedAt.formatted(.relative(presentation: .named)))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .background(hovering ? Color.primary.opacity(0.07) : .clear)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(run.title)
+    }
+}
+
 struct ChecksIcon: View {
     let state: String?
 
@@ -252,4 +305,9 @@ private struct RowMenu: View {
             Button("Marcar como leída") { Task { await model.markRead(threadID: threadID) } }
         }
     }
+}
+
+private struct ListHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
