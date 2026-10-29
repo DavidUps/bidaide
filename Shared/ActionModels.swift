@@ -32,9 +32,6 @@ struct WorkflowRun: Codable, Hashable, Identifiable {
     }
 
     var repoName: String { String(repo.split(separator: "/").last ?? "") }
-
-    /// Runs of the same workflow on the same branch replace each other.
-    var lineKey: String { "\(repo)|\(workflow)|\(branch)" }
 }
 
 enum RunOutcome {
@@ -76,10 +73,4 @@ extension Snapshot {
     var workflowRuns: [WorkflowRun] { runs ?? [] }
 
     var activeRuns: [WorkflowRun] { workflowRuns.filter(\.outcome.isActive) }
-
-    /// Workflows whose latest run on a branch failed.
-    var failingRuns: [WorkflowRun] {
-        var seen = Set<String>()
-        return workflowRuns.filter { seen.insert($0.lineKey).inserted && $0.outcome == .failure }
-    }
 }

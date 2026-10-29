@@ -32,7 +32,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Links coming from the widget: `bidaidenotificator://open?url=…`.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            if let target = DeepLink.target(of: url) { NSWorkspace.shared.open(target) }
+            guard let target = DeepLink.target(of: url) else { continue }
+            NSWorkspace.shared.open(target.url)
+            if let threadID = target.threadID {
+                Task { @MainActor in await AppModel.shared.markRead(threadID: threadID) }
+            }
         }
     }
 }

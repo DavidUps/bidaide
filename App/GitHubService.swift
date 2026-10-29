@@ -42,8 +42,10 @@ enum GitHubService {
       number title url updatedAt isDraft reviewDecision
       author { login }
       repository { nameWithOwner }
-      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-      reviewThreads(first: 100) { nodes { isResolved comments(last: 1) { nodes { author { login } } } } }
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
+      reviewThreads(first: 100) { nodes { isResolved isOutdated comments(last: 1) { nodes { author { login __typename } createdAt } } } }
+      reviews(last: 20, states: [CHANGES_REQUESTED]) { nodes { submittedAt } }
+      comments(last: 30) { nodes { author { login } createdAt } }
     }
     """
 
@@ -80,7 +82,7 @@ enum GitHubService {
         buckets.mine = result.authored.nodes.compactMap { $0?.pullRequest(login: login) }
         buckets.answer = buckets.mine.compactMap { pr in
             var reasons: [String] = []
-            if pr.reviewDecision == "CHANGES_REQUESTED" { reasons.append("Cambios pedidos") }
+            if pr.changesRequestedUnanswered { reasons.append("Cambios pedidos") }
             if pr.waitingThreads > 0 {
                 reasons.append(pr.waitingThreads == 1 ? "1 hilo esperando" : "\(pr.waitingThreads) hilos esperando")
             }
@@ -93,16 +95,21 @@ enum GitHubService {
     }
 
     private struct SearchResponse: Decodable {
-        struct Login: Decodable { let login: String }
+        struct Login: Decodable {
+            let login: String
+            var __typename: String?
+        }
         struct Repo: Decodable { let nameWithOwner: String }
         struct Rollup: Decodable { let state: String }
-        struct Commit: Decodable { let statusCheckRollup: Rollup? }
+        struct Commit: Decodable { let committedDate: Date?; let statusCheckRollup: Rollup? }
         struct CommitNode: Decodable { let commit: Commit }
         struct Commits: Decodable { let nodes: [CommitNode] }
-        struct ThreadComment: Decodable { let author: Login? }
+        struct ThreadComment: Decodable { let author: Login?; let createdAt: Date? }
         struct ThreadComments: Decodable { let nodes: [ThreadComment] }
-        struct Thread: Decodable { let isResolved: Bool; let comments: ThreadComments }
+        struct Thread: Decodable { let isResolved: Bool; let isOutdated: Bool?; let comments: ThreadComments }
         struct Threads: Decodable { let nodes: [Thread] }
+        struct Review: Decodable { let submittedAt: Date? }
+        struct Reviews: Decodable { let nodes: [Review] }
 
         struct Node: Decodable {
             let number: Int?
@@ -115,18 +122,33 @@ enum GitHubService {
             let repository: Repo?
             let commits: Commits?
             let reviewThreads: Threads?
+            let reviews: Reviews?
+            let comments: ThreadComments?
 
             func pullRequest(login: String) -> PullRequest? {
                 guard let number, let title, let url, let updatedAt, let repository else { return nil }
-                let waiting = reviewThreads?.nodes.filter { thread in
-                    !thread.isResolved && thread.comments.nodes.last?.author?.login != login
-                }.count ?? 0
+                let threads = reviewThreads?.nodes ?? []
+                // Threads someone is waiting on: open, still on current code, last word from a person who is not the user.
+                let waiting = threads.filter { thread in
+                    guard !thread.isResolved, thread.isOutdated != true,
+                          let author = thread.comments.nodes.last?.author
+                    else { return false }
+                    return author.login != login && author.__typename != "Bot"
+                }.count
+                // The user answered a change request if they pushed or commented after it.
+                let lastChangeRequest = reviews?.nodes.compactMap(\.submittedAt).max()
+                let ownComments = ((comments?.nodes ?? []) + threads.flatMap(\.comments.nodes))
+                    .filter { $0.author?.login == login }.compactMap(\.createdAt)
+                let lastAnswer = (ownComments + [commits?.nodes.first?.commit.committedDate].compactMap { $0 }).max()
+                let unanswered = reviewDecision == "CHANGES_REQUESTED"
+                    && (lastChangeRequest.map { request in lastAnswer.map { $0 < request } ?? true } ?? true)
                 return PullRequest(
                     repo: repository.nameWithOwner, number: number, title: title, url: url,
                     author: author?.login ?? "ghost", updatedAt: updatedAt, isDraft: isDraft ?? false,
                     reviewDecision: reviewDecision,
                     checks: commits?.nodes.first?.commit.statusCheckRollup?.state,
-                    waitingThreads: waiting
+                    waitingThreads: waiting,
+                    changesRequestedUnanswered: unanswered
                 )
             }
         }
@@ -137,6 +159,24 @@ enum GitHubService {
 
         let data: Result?
         let errors: [GraphQLError]?
+    }
+
+    /// URLs of the pull requests that are still open, so notifications about merged or closed ones can be dropped.
+    static func openPullRequestURLs(_ items: [(repo: String, number: Int)]) async throws -> Set<String> {
+        guard !items.isEmpty else { return [] }
+        let fields = items.prefix(50).enumerated().compactMap { index, item -> String? in
+            let parts = item.repo.split(separator: "/")
+            guard parts.count == 2 else { return nil }
+            return "p\(index): repository(owner: \"\(parts[0])\", name: \"\(parts[1])\") { pullRequest(number: \(item.number)) { url state } }"
+        }
+        let data = try await GhCli.run(["api", "graphql", "-f", "query={ \(fields.joined(separator: " ")) }"])
+        struct Response: Decodable {
+            struct Repo: Decodable { let pullRequest: PR? }
+            struct PR: Decodable { let url: String; let state: String }
+            let data: [String: Repo?]?
+        }
+        let response = try decoder.decode(Response.self, from: data)
+        return Set((response.data ?? [:]).values.compactMap { $0?.pullRequest }.filter { $0.state == "OPEN" }.map(\.url))
     }
 
     // MARK: Actions

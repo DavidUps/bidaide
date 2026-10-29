@@ -30,7 +30,7 @@ struct ActionsWidget: Widget {
                 .containerBackground(for: .widget) { CardBackground() }
         }
         .configurationDisplayName("GitHub Actions")
-        .description("Tus workflows en curso y cómo acabaron los últimos.")
+        .description("Tus workflows en marcha.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     }
 }
@@ -44,88 +44,54 @@ struct ActionsWidgetView: View {
             Group {
                 switch family {
                 case .systemSmall:
-                    ActionsSummary(snapshot: snapshot, bars: 12)
+                    ActionsSummary(snapshot: snapshot)
                 case .systemMedium:
                     HStack(alignment: .top, spacing: 14) {
-                        ActionsSummary(snapshot: snapshot, bars: 10).frame(width: 96)
-                        CardColumns(items: snapshot.workflowRuns, columns: 1, perColumn: 3,
-                                    emptyText: "Sin ejecuciones recientes") { RunRow(run: $0) }
+                        ActionsSummary(snapshot: snapshot).frame(width: 96)
+                        CardColumns(items: snapshot.activeRuns, columns: 1, perColumn: 3,
+                                    emptyText: "Nada en marcha") { RunRow(run: $0) }
                     }
                 default:
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .bottom) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                CardBadge(title: "GitHub Actions", symbol: "play.circle")
-                                RunState(snapshot: snapshot)
-                            }
-                            Spacer()
-                            HistoryBars(runs: snapshot.workflowRuns, count: family == .systemExtraLarge ? 30 : 16)
+                        VStack(alignment: .leading, spacing: 10) {
+                            CardBadge(title: "GitHub Actions", symbol: "play.circle")
+                            RunState(snapshot: snapshot)
                         }
                         Divider().opacity(0.5)
-                        CardColumns(items: snapshot.workflowRuns, columns: family == .systemExtraLarge ? 2 : 1, perColumn: 5,
-                                    emptyText: "Sin ejecuciones recientes") { RunRow(run: $0) }
+                        CardColumns(items: snapshot.activeRuns, columns: family == .systemExtraLarge ? 2 : 1, perColumn: 5,
+                                    emptyText: "Nada en marcha") { RunRow(run: $0) }
                     }
                 }
             }
-            .widgetURL(snapshot.workflowRuns.first.map { DeepLink.open($0.url) })
+            .widgetURL(snapshot.activeRuns.first.map { DeepLink.open($0.url) })
         } else {
             LoadingHint(symbol: "play.circle")
         }
     }
 }
 
-/// Left column: badge, what is going on right now and the recent history.
+/// Left column: badge and what is going on right now.
 private struct ActionsSummary: View {
     let snapshot: Snapshot
-    let bars: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             CardBadge(title: "Actions", symbol: "play.circle")
             Spacer(minLength: 6)
             RunState(snapshot: snapshot)
-            Spacer(minLength: 6)
-            HistoryBars(runs: snapshot.workflowRuns, count: bars)
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-/// Running first, then failing, then all green.
+/// How many runs are queued or running right now.
 private struct RunState: View {
     let snapshot: Snapshot
 
     var body: some View {
         let active = snapshot.activeRuns.count
-        let failing = snapshot.failingRuns.count
-        if active > 0 {
-            BigCount(caption: "en curso", captionColor: .orange) { Text("\(active)") }
-        } else if failing > 0 {
-            BigCount(caption: "fallando", captionColor: .red) { Text("\(failing)") }
-        } else if snapshot.workflowRuns.isEmpty {
-            BigCount(caption: "sin ejecuciones") { Text("–") }
-        } else {
-            BigCount(caption: "todo en verde", captionColor: .green) {
-                Image(systemName: "checkmark").foregroundStyle(.green)
-            }
-        }
-    }
-}
-
-/// One bar per run, oldest on the left. Cancelled and skipped runs are shorter.
-private struct HistoryBars: View {
-    let runs: [WorkflowRun]
-    let count: Int
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 3) {
-            ForEach(runs.prefix(count).reversed()) { run in
-                RoundedRectangle(cornerRadius: 2.5)
-                    .fill(run.outcome.color)
-                    .frame(width: 6, height: run.outcome == .cancelled ? 9 : 22)
-            }
-        }
-        .frame(height: 22, alignment: .bottom)
+        BigCount(caption: "en marcha", captionColor: active > 0 ? .orange : .secondary) { Text("\(active)") }
     }
 }
 

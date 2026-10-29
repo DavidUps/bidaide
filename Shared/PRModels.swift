@@ -54,6 +54,8 @@ struct PullRequest: Codable, Hashable, Identifiable {
     var checks: String?
     /// Unresolved review threads whose last comment is not from the user.
     var waitingThreads = 0
+    /// Changes were requested and the user has neither pushed nor commented since.
+    var changesRequestedUnanswered = false
     /// Free text shown under the title, e.g. why it is in this bucket.
     var detail: String?
     /// GitHub notification thread, for items that come from `/notifications`.
@@ -144,19 +146,22 @@ enum DeepLink {
     static let scheme = "bidaidenotificator"
 
     /// Widgets open URLs through the containing app; this wraps a GitHub URL so the app forwards it to the browser.
-    static func open(_ url: String) -> URL {
+    /// `threadID` marks the GitHub notification as read once the app opens it.
+    static func open(_ url: String, threadID: String? = nil) -> URL {
         var components = URLComponents()
         components.scheme = scheme
         components.host = "open"
         components.queryItems = [URLQueryItem(name: "url", value: url)]
+        if let threadID { components.queryItems?.append(URLQueryItem(name: "thread", value: threadID)) }
         return components.url!
     }
 
-    static func target(of url: URL) -> URL? {
+    static func target(of url: URL) -> (url: URL, threadID: String?)? {
         guard url.scheme == scheme,
-              let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "url" })?.value
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let value = items.first(where: { $0.name == "url" })?.value,
+              let target = URL(string: value)
         else { return nil }
-        return URL(string: value)
+        return (target, items.first { $0.name == "thread" }?.value)
     }
 }

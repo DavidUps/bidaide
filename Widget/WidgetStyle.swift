@@ -76,10 +76,11 @@ struct CardRow<Trailing: View>: View {
     let title: String
     let subtitle: String
     let url: String
+    var threadID: String? = nil
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        Link(destination: DeepLink.open(url)) {
+        Link(destination: DeepLink.open(url, threadID: threadID)) {
             HStack(alignment: .center, spacing: 10) {
                 RowIcon(symbol: symbol, color: color)
                 VStack(alignment: .leading, spacing: 1) {
@@ -117,8 +118,10 @@ private struct RowIcon: View {
 }
 
 extension CardRow where Trailing == EmptyView {
-    init(symbol: String, color: Color, title: String, subtitle: String, url: String) {
-        self.init(symbol: symbol, color: color, title: title, subtitle: subtitle, url: url) { EmptyView() }
+    init(symbol: String, color: Color, title: String, subtitle: String, url: String, threadID: String? = nil) {
+        self.init(symbol: symbol, color: color, title: title, subtitle: subtitle, url: url, threadID: threadID) {
+            EmptyView()
+        }
     }
 }
 

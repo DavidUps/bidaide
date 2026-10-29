@@ -221,7 +221,7 @@ private struct PRCardRow: View {
         let pr = item.pullRequest
         let repo = "\(pr.repo.split(separator: "/").last ?? "")#\(pr.number)"
         CardRow(symbol: symbol, color: color, title: pr.title,
-                subtitle: "\(pr.detail ?? pr.updatedAt.shortAgo) · \(repo)", url: pr.url)
+                subtitle: "\(pr.detail ?? pr.updatedAt.shortAgo) · \(repo)", url: pr.url, threadID: pr.threadID)
     }
 
     private var symbol: String {

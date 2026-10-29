@@ -62,7 +62,10 @@ final class AppModel: ObservableObject {
             let prRepos = (buckets.mine + buckets.review).map(\.repo)
             let runs = (try? await GitHubService.fetchRuns(login: login, prRepos: prRepos)) ?? snapshot?.runs
 
-            let commented = notifications.filter(\.isConversation).map { notification in
+            let conversations = notifications.filter(\.isConversation)
+            // Comments on merged or closed PRs are done with; if the lookup fails, keep them all.
+            let open = try? await GitHubService.openPullRequestURLs(conversations.map { ($0.repo, $0.number) })
+            let commented = conversations.filter { open?.contains($0.htmlURL) ?? true }.map { notification in
                 PullRequest(repo: notification.repo, number: notification.number, title: notification.title,
                             url: notification.htmlURL, author: "", updatedAt: notification.updatedAt,
                             detail: notification.reasonLabel, threadID: notification.id)
@@ -89,16 +92,26 @@ final class AppModel: ObservableObject {
     }
 
     func markRead(threadID: String) async {
+        // Drop it right away so the menu and widgets do not keep showing it while GitHub catches up.
+        if var current = snapshot {
+            for index in current.sections.indices {
+                current.sections[index].items.removeAll { $0.threadID == threadID }
+            }
+            publish(current)
+        }
         try? await GitHubService.markRead(threadID: threadID)
         await refresh()
     }
 
+    /// Opens a PR or run from the menu: closes the menu, and a comment notification counts as seen.
     func open(_ pullRequest: PullRequest) {
-        open(pullRequest.url)
+        open(pullRequest.url, threadID: pullRequest.threadID)
     }
 
-    func open(_ string: String) {
+    func open(_ string: String, threadID: String? = nil) {
+        NSApp.keyWindow?.close()
         if let url = URL(string: string) { NSWorkspace.shared.open(url) }
+        if let threadID { Task { await markRead(threadID: threadID) } }
     }
 
     private func currentLogin() async throws -> String {

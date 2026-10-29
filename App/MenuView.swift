@@ -53,7 +53,7 @@ struct MenuView: View {
     private var content: some View {
         if let snapshot = model.snapshot {
             let visible = categories.filter { !snapshot.items($0).isEmpty }
-            let runs = Array(snapshot.workflowRuns.prefix(8))
+            let runs = snapshot.activeRuns
             if visible.isEmpty && runs.isEmpty {
                 EmptyState()
             } else {
