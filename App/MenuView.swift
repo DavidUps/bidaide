@@ -192,6 +192,11 @@ struct PRRow: View {
 
     private var badges: [(text: String, color: Color)] {
         var result: [(String, Color)] = []
+        switch pullRequest.activity {
+        case .comment: result.append(("💬 \(PRActivity.comment.label)", .blue))
+        case .update: result.append(("↻ \(PRActivity.update.label)", .purple))
+        case nil: break
+        }
         if pullRequest.isDraft { result.append(("Borrador", .gray)) }
         switch pullRequest.reviewDecision {
         case "APPROVED": result.append(("Aprobada", .green))

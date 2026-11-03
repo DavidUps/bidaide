@@ -221,11 +221,13 @@ private struct PRCardRow: View {
         let pr = item.pullRequest
         let repo = "\(pr.repo.split(separator: "/").last ?? "")#\(pr.number)"
         CardRow(symbol: symbol, color: color, title: pr.title,
-                subtitle: "\(pr.detail ?? pr.updatedAt.shortAgo) · \(repo)", url: pr.url, threadID: pr.threadID)
+                subtitle: "\(pr.activity?.label ?? pr.detail ?? pr.updatedAt.shortAgo) · \(repo)", url: pr.url,
+                threadID: pr.threadID)
     }
 
     private var symbol: String {
-        switch item.category {
+        if item.category != .commented, item.pullRequest.activity == .comment { return "bubble.left.fill" }
+        return switch item.category {
         case .review, .assigned: "arrow.triangle.pull"
         case .answer: "arrowshape.turn.up.left.circle.fill"
         case .commented: "bubble.left.fill"
@@ -234,7 +236,8 @@ private struct PRCardRow: View {
     }
 
     private var color: Color {
-        switch item.category {
+        if item.category != .commented, item.pullRequest.activity == .comment { return WidgetStyle.comment }
+        return switch item.category {
         case .review, .assigned: WidgetStyle.accent
         case .answer: .orange
         case .commented: WidgetStyle.comment

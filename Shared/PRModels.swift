@@ -39,6 +39,18 @@ enum PRCategory: String, Codable, CaseIterable, Identifiable {
     var needsAction: Bool { self != .mine }
 }
 
+/// Unread activity on a PR that sits in another bucket, shown as a chip so a comment stands out from a push.
+enum PRActivity: String, Codable, Hashable {
+    case comment, update
+
+    var label: String {
+        switch self {
+        case .comment: "Comentario nuevo"
+        case .update: "Actualizada"
+        }
+    }
+}
+
 struct PullRequest: Codable, Hashable, Identifiable {
     var id: String { url }
     let repo: String
@@ -60,6 +72,8 @@ struct PullRequest: Codable, Hashable, Identifiable {
     var detail: String?
     /// GitHub notification thread, for items that come from `/notifications`.
     var threadID: String?
+    /// Unread comment or update, for PRs outside "Comentadas". Optional so older snapshots still decode.
+    var activity: PRActivity?
 }
 
 struct PRSection: Codable, Hashable {
@@ -105,7 +119,7 @@ extension Snapshot {
             PRSection(category: .review, items: [
                 PullRequest(repo: "acme/android", number: 128, title: "Pantalla de pago con Compose",
                             url: "https://github.com/acme/android/pull/128", author: "ana", updatedAt: .now,
-                            checks: "SUCCESS"),
+                            checks: "SUCCESS", activity: .comment),
                 PullRequest(repo: "acme/api", number: 54, title: "Paginación en /orders",
                             url: "https://github.com/acme/api/pull/54", author: "luis", updatedAt: .now,
                             checks: "PENDING"),
