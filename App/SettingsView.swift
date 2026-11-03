@@ -56,7 +56,7 @@ struct SettingsView: View {
                 }
                 .disabled(!partyMode)
             } footer: {
-                Text("Suena «oh no» cuando te asignan una PR.").font(.caption).foregroundStyle(.secondary)
+                Text("Suena «oh no» cuando un bot te asigna una PR automáticamente.").font(.caption).foregroundStyle(.secondary)
             }
 
             Section("GitHub CLI") {

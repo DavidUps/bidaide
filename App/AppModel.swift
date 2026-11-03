@@ -195,13 +195,16 @@ final class AppModel: ObservableObject {
                 }
                 url = comment.htmlURL ?? url
             }
+            // Party mode only for assignments a bot made; later activity on the PR keeps the "assign" reason.
+            let party = notification.reason == "assign" && !isComment && Preferences.partyMode
+                ? await GitHubService.wasAssignedAutomatically(repo: notification.repo, number: notification.number,
+                                                               login: login)
+                : false
 
             Notifier.shared.post(
                 id: "\(notification.id)-\(stamp)", title: title, subtitle: subtitle,
                 body: body, url: url, threadID: notification.id,
-                // Later activity on an assigned PR keeps the "assign" reason; only the assignment itself parties.
-                sound: notification.reason == "assign" && !isComment && Preferences.partyMode
-                    ? Notifier.assignSound : Notifier.defaultSound
+                sound: party ? Notifier.assignSound : Notifier.defaultSound
             )
             budget -= 1
         }

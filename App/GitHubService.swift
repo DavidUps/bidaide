@@ -267,6 +267,16 @@ enum GitHubService {
         return GhComment(author: author, body: raw.body ?? "", htmlURL: raw.html_url)
     }
 
+    /// Whether the latest assignment of the PR to `login` was made by a bot (auto-assign actions, Mergify…) rather
+    /// than a person. Events come oldest first, page by page; the last matching line wins.
+    static func wasAssignedAutomatically(repo: String, number: Int, login: String) async -> Bool {
+        let filter = #".[] | select(.event == "assigned" and .assignee.login == "\#(login)") | .actor | "\(.type) \(.login)""#
+        guard let data = try? await GhCli.run(["api", "--paginate", "repos/\(repo)/issues/\(number)/events", "--jq", filter]),
+              let last = String(decoding: data, as: UTF8.self).split(separator: "\n").last
+        else { return false }
+        return last.hasPrefix("Bot ") || last.hasSuffix("[bot]")
+    }
+
     static func markRead(threadID: String) async throws {
         _ = try await GhCli.run(["api", "-X", "PATCH", "notifications/threads/\(threadID)"])
     }

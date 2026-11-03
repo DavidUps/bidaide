@@ -29,8 +29,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         content.title = title
         content.subtitle = subtitle
         content.body = body
-        // Bundled in App/Sounds; macOS falls back to the default sound if it cannot load it.
-        content.sound = UNNotificationSound(named: UNNotificationSoundName(sound))
+        // Sounds bundled in App/Sounds are played by the app in `willPresent`; giving macOS one too makes it play its
+        // default sound on top. Only an unknown name is left to macOS.
+        if Bundle.main.url(forResource: sound, withExtension: nil) == nil {
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(sound))
+        }
         // Only GitHub notifications can be marked as read.
         if threadID != nil { content.categoryIdentifier = Self.category }
         content.threadIdentifier = subtitle
