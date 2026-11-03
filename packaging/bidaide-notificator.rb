@@ -1,5 +1,5 @@
 cask "bidaide-notificator" do
-  version "0.2.3"
+  version "0.2.4"
   sha256 "SHA256"
 
   url "https://github.com/DavidUps/bidaide/releases/download/v#{version}/BidaideNotificator-#{version}.zip"
