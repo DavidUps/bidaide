@@ -34,13 +34,27 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         // Only GitHub notifications can be marked as read.
         if threadID != nil { content.categoryIdentifier = Self.category }
         content.threadIdentifier = subtitle
-        content.userInfo = ["url": url, "threadID": threadID ?? ""]
+        content.userInfo = ["url": url, "threadID": threadID ?? "", "sound": sound]
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
     }
 
+    /// macOS does not always find sounds in the app bundle and plays its default one instead, so the app plays the
+    /// sound itself. It still respects the user turning sounds off for the app in System Settings.
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound, .list])
+        let name = notification.request.content.userInfo["sound"] as? String ?? ""
+        guard let url = Bundle.main.url(forResource: name, withExtension: nil),
+              let sound = NSSound(contentsOf: url, byReference: true)
+        else {
+            completionHandler([.banner, .sound, .list])
+            return
+        }
+        center.getNotificationSettings { settings in
+            if settings.soundSetting == .enabled {
+                DispatchQueue.main.async { sound.play() }
+            }
+            completionHandler([.banner, .list])
+        }
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
