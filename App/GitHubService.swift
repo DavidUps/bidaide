@@ -311,6 +311,14 @@ extension GhNotification {
         }
     }
 
+    /// What changed, for the chip on PRs in other buckets. A notification that points at a comment or review is a
+    /// comment; otherwise it is a push or another update. Being assigned or asked for review is what the bucket
+    /// already says, and CI has its own section, so those get no chip.
+    var activity: PRActivity? {
+        if let commentURL = latestCommentURL, !commentURL.hasSuffix("/pulls/\(number)") { return .comment }
+        return ["assign", "review_requested", "ci_activity"].contains(reason) ? nil : .update
+    }
+
     /// Reasons that land in the "Comentadas" bucket.
     var isConversation: Bool {
         ["comment", "mention", "team_mention", "author"].contains(reason)

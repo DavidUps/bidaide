@@ -70,12 +70,13 @@ final class AppModel: ObservableObject {
                             url: notification.htmlURL, author: "", updatedAt: notification.updatedAt,
                             detail: notification.reasonLabel, threadID: notification.id)
             }
+            let activity = latestActivity(notifications)
             let next = Snapshot(updatedAt: .now, login: login, sections: [
-                PRSection(category: .review, items: buckets.review),
-                PRSection(category: .answer, items: buckets.answer),
+                PRSection(category: .review, items: annotated(buckets.review, activity)),
+                PRSection(category: .answer, items: annotated(buckets.answer, activity)),
                 PRSection(category: .commented, items: deduplicated(commented)),
-                PRSection(category: .assigned, items: buckets.assigned),
-                PRSection(category: .mine, items: buckets.mine),
+                PRSection(category: .assigned, items: annotated(buckets.assigned, activity)),
+                PRSection(category: .mine, items: annotated(buckets.mine, activity)),
             ], runs: runs)
             let previousRuns = snapshot?.runs
             publish(next)
@@ -95,7 +96,16 @@ final class AppModel: ObservableObject {
         // Drop it right away so the menu and widgets do not keep showing it while GitHub catches up.
         if var current = snapshot {
             for index in current.sections.indices {
-                current.sections[index].items.removeAll { $0.threadID == threadID }
+                if current.sections[index].category == .commented {
+                    current.sections[index].items.removeAll { $0.threadID == threadID }
+                } else {
+                    // The PR still belongs here; only the unread chip goes away.
+                    for item in current.sections[index].items.indices
+                    where current.sections[index].items[item].threadID == threadID {
+                        current.sections[index].items[item].threadID = nil
+                        current.sections[index].items[item].activity = nil
+                    }
+                }
             }
             publish(current)
         }
@@ -125,6 +135,26 @@ final class AppModel: ObservableObject {
         self.snapshot = snapshot
         try? SnapshotStore.save(snapshot)
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Newest unread activity per PR URL, with the notification thread that clears it.
+    private func latestActivity(_ notifications: [GhNotification]) -> [String: (PRActivity, String)] {
+        var result: [String: (PRActivity, String)] = [:]
+        for notification in notifications.sorted(by: { $0.updatedAt > $1.updatedAt }) where result[notification.htmlURL] == nil {
+            if let activity = notification.activity { result[notification.htmlURL] = (activity, notification.id) }
+        }
+        return result
+    }
+
+    /// Tags PRs that have unread activity, so opening them also marks the notification as read.
+    private func annotated(_ items: [PullRequest], _ activity: [String: (PRActivity, String)]) -> [PullRequest] {
+        items.map { pr in
+            guard let (kind, threadID) = activity[pr.url] else { return pr }
+            var copy = pr
+            copy.activity = kind
+            copy.threadID = threadID
+            return copy
+        }
     }
 
     /// Several unread notifications can point at the same PR; keep the newest one.
