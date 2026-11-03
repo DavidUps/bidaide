@@ -5,6 +5,7 @@ enum SettingsKey {
     static let pollInterval = "pollInterval"
     static let includeDrafts = "includeDrafts"
     static let showMineInMenu = "showMineInMenu"
+    static let partyMode = "partyMode"
 
     static func notify(_ reason: String) -> String { "notify.\(reason)" }
 }
@@ -34,6 +35,7 @@ enum Preferences {
             SettingsKey.pollInterval: 120,
             SettingsKey.includeDrafts: false,
             SettingsKey.showMineInMenu: true,
+            SettingsKey.partyMode: true,
         ]
         for reason in NotificationReason.all {
             defaults[SettingsKey.notify(reason.id)] = reason.enabledByDefault
@@ -46,6 +48,9 @@ enum Preferences {
     }
 
     static var includeDrafts: Bool { UserDefaults.standard.bool(forKey: SettingsKey.includeDrafts) }
+
+    /// Plays a special sound when someone assigns a PR to the user.
+    static var partyMode: Bool { UserDefaults.standard.bool(forKey: SettingsKey.partyMode) }
 
     static func notifies(_ reason: String) -> Bool {
         UserDefaults.standard.object(forKey: SettingsKey.notify(reason)) as? Bool ?? false

@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.pollInterval) private var pollInterval = 120.0
     @AppStorage(SettingsKey.includeDrafts) private var includeDrafts = false
     @AppStorage(SettingsKey.showMineInMenu) private var showMine = true
+    @AppStorage(SettingsKey.partyMode) private var partyMode = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchError: String?
 
@@ -38,9 +39,24 @@ struct SettingsView: View {
                     Notifier.shared.post(
                         id: UUID().uuidString, title: "@octocat ha comentado",
                         subtitle: "acme/android#128 · Pantalla de pago", body: "¿Podemos extraer esto a un caso de uso?",
-                        url: "https://github.com/notifications", threadID: nil
+                        url: "https://github.com/notifications", threadID: nil,
+                        sound: partyMode ? Notifier.assignSound : Notifier.defaultSound
                     )
                 }
+            }
+
+            Section {
+                Toggle("Modo fiesta 🎉", isOn: $partyMode)
+                Button("Probar sonido de asignación") {
+                    Notifier.shared.post(
+                        id: UUID().uuidString, title: "@octocat te ha asignado",
+                        subtitle: "acme/android#128", body: "Pantalla de pago con Compose",
+                        url: "https://github.com/pulls/assigned", threadID: nil, sound: Notifier.assignSound
+                    )
+                }
+                .disabled(!partyMode)
+            } footer: {
+                Text("Suena «oh no» cuando te asignan una PR.").font(.caption).foregroundStyle(.secondary)
             }
 
             Section("GitHub CLI") {

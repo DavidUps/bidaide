@@ -179,11 +179,13 @@ final class AppModel: ObservableObject {
             var body = notification.title
             var url = notification.htmlURL
             var subtitle = "\(notification.repo)#\(notification.number)"
+            var isComment = false
             if let commentURL = notification.latestCommentURL,
                !commentURL.hasSuffix("/pulls/\(notification.number)"),
                let comment = await GitHubService.comment(at: commentURL) {
                 // Skip activity the user caused themselves.
                 if comment.author == login { continue }
+                isComment = true
                 title = Self.title(for: notification.reason, author: comment.author) ?? title
                 let preview = comment.body.replacingOccurrences(of: "\r\n", with: " ")
                     .replacingOccurrences(of: "\n", with: " ")
@@ -196,7 +198,10 @@ final class AppModel: ObservableObject {
 
             Notifier.shared.post(
                 id: "\(notification.id)-\(stamp)", title: title, subtitle: subtitle,
-                body: body, url: url, threadID: notification.id
+                body: body, url: url, threadID: notification.id,
+                // Later activity on an assigned PR keeps the "assign" reason; only the assignment itself parties.
+                sound: notification.reason == "assign" && !isComment && Preferences.partyMode
+                    ? Notifier.assignSound : Notifier.defaultSound
             )
             budget -= 1
         }

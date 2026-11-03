@@ -8,6 +8,10 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     private static let category = "pull-request"
     private static let markReadAction = "mark-read"
 
+    static let defaultSound = "notification.caf"
+    /// Party mode sound for a new assignment.
+    static let assignSound = "party-assign.caf"
+
     private var center: UNUserNotificationCenter { .current() }
 
     func setUp() {
@@ -19,13 +23,14 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
-    func post(id: String, title: String, subtitle: String, body: String, url: String, threadID: String?) {
+    func post(id: String, title: String, subtitle: String, body: String, url: String, threadID: String?,
+              sound: String = Notifier.defaultSound) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.subtitle = subtitle
         content.body = body
         // Bundled in App/Sounds; macOS falls back to the default sound if it cannot load it.
-        content.sound = UNNotificationSound(named: UNNotificationSoundName("notification.caf"))
+        content.sound = UNNotificationSound(named: UNNotificationSoundName(sound))
         // Only GitHub notifications can be marked as read.
         if threadID != nil { content.categoryIdentifier = Self.category }
         content.threadIdentifier = subtitle
