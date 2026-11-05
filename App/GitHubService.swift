@@ -10,6 +10,8 @@ struct GhNotification: Hashable {
     let htmlURL: String
     let updatedAt: Date
     let latestCommentURL: String?
+    /// When the user last read the thread; nil if never.
+    var lastReadAt: Date?
 }
 
 struct GhComment {
@@ -253,7 +255,8 @@ enum GitHubService {
                 id: item.id, reason: item.reason, title: item.subject.title,
                 repo: item.repository.full_name, number: number,
                 htmlURL: "https://github.com/\(item.repository.full_name)/pull/\(number)",
-                updatedAt: item.updated_at, latestCommentURL: item.subject.latest_comment_url
+                updatedAt: item.updated_at, latestCommentURL: item.subject.latest_comment_url,
+                lastReadAt: item.last_read_at
             )
         }
     }
@@ -267,14 +270,32 @@ enum GitHubService {
         return GhComment(author: author, body: raw.body ?? "", htmlURL: raw.html_url)
     }
 
-    /// Whether the latest assignment of the PR to `login` was made by a bot (auto-assign actions, Mergify…) rather
-    /// than a person. Events come oldest first, page by page; the last matching line wins.
-    static func wasAssignedAutomatically(repo: String, number: Int, login: String) async -> Bool {
-        let filter = #".[] | select(.event == "assigned" and .assignee.login == "\#(login)") | .actor | "\(.type) \(.login)""#
-        guard let data = try? await GhCli.run(["api", "--paginate", "repos/\(repo)/issues/\(number)/events", "--jq", filter]),
-              let last = String(decoding: data, as: UTF8.self).split(separator: "\n").last
-        else { return false }
-        return last.hasPrefix("Bot ") || last.hasSuffix("[bot]")
+    /// Commits, comments, reviews and state changes of a PR, oldest first, reduced by jq to `PREvent` lines.
+    static func timeline(repo: String, number: Int) async throws -> [PREvent] {
+        let filter = """
+        .[] | if .event == "line-commented" then
+          {e: .event, who: (.comments[0].user.login // ""), bot: ((.comments[0].user.type // "") == "Bot"),
+           at: (.comments[-1].created_at // ""), n: (.comments | length)}
+        else
+          {e: .event, who: (.actor.login // .user.login // .author.name // ""),
+           bot: ((.actor.type // .user.type // "") == "Bot"),
+           at: (.created_at // .submitted_at // .committer.date // ""), state: (.state // ""),
+           target: (.assignee.login // .requested_reviewer.login // ""), n: 1}
+        end | select(.at != "") | @json
+        """
+        let data = try await GhCli.run([
+            "api", "--paginate", "repos/\(repo)/issues/\(number)/timeline?per_page=100", "--jq", filter,
+        ])
+        return String(decoding: data, as: UTF8.self).split(separator: "\n").compactMap {
+            try? decoder.decode(PREvent.self, from: Data($0.utf8))
+        }
+    }
+
+    /// The user's display name, which git uses as commit author, so their own commits are not reported back.
+    static func displayName() async -> String? {
+        guard let data = try? await GhCli.run(["api", "user", "--jq", ".name // empty"]) else { return nil }
+        let name = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
     }
 
     static func markRead(threadID: String) async throws {
@@ -294,6 +315,7 @@ enum GitHubService {
         let reason: String
         let unread: Bool
         let updated_at: Date
+        let last_read_at: Date?
         let subject: Subject
         let repository: Repository
     }

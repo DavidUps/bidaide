@@ -124,6 +124,15 @@ final class AppModel: ObservableObject {
         if let threadID { Task { await markRead(threadID: threadID) } }
     }
 
+    private var displayName: String??
+
+    private func currentDisplayName() async -> String? {
+        if let displayName { return displayName }
+        let value = await GitHubService.displayName()
+        displayName = .some(value)
+        return value
+    }
+
     private func currentLogin() async throws -> String {
         if let login { return login }
         let value = try await GitHubService.login()
@@ -169,42 +178,55 @@ final class AppModel: ObservableObject {
         // Never more than a handful per poll, so waking the Mac up does not flood the screen.
         var budget = 8
 
+        let me = Set([login] + [await currentDisplayName()].compactMap { $0 })
+
         for notification in notifications.sorted(by: { $0.updatedAt < $1.updatedAt }) {
             let stamp = ISO8601DateFormatter().string(from: notification.updatedAt)
-            guard delivered[notification.id] != stamp else { continue }
+            let previous = delivered[notification.id]
+            guard previous != stamp else { continue }
             delivered[notification.id] = stamp
             guard !isFirstRun, budget > 0, Preferences.notifies(notification.reason) else { continue }
 
-            var title = notification.reasonLabel
-            var body = notification.title
+            // Explain the notification with what happened since the last one about this PR.
+            let since = previous.flatMap { ISO8601DateFormatter().date(from: $0) }
+                ?? notification.lastReadAt
+                ?? notification.updatedAt.addingTimeInterval(-15 * 60)
+            var summary: ActivitySummary?
+            if let events = try? await GitHubService.timeline(repo: notification.repo, number: notification.number) {
+                let found = ActivitySummary(events: events, since: since, until: notification.updatedAt,
+                                            login: login, me: me)
+                // Nothing someone else did explains it (own activity, CI…): stay quiet rather than ping for no reason.
+                if found.isEmpty { continue }
+                summary = found
+            }
+
+            var title = summary?.parts.first ?? notification.reasonLabel
+            var details = Array(summary?.parts.dropFirst() ?? [])
             var url = notification.htmlURL
-            var subtitle = "\(notification.repo)#\(notification.number)"
-            var isComment = false
+            var preview: String?
             if let commentURL = notification.latestCommentURL,
                !commentURL.hasSuffix("/pulls/\(notification.number)"),
                let comment = await GitHubService.comment(at: commentURL) {
-                // Skip activity the user caused themselves.
-                if comment.author == login { continue }
-                isComment = true
-                title = Self.title(for: notification.reason, author: comment.author) ?? title
-                let preview = comment.body.replacingOccurrences(of: "\r\n", with: " ")
-                    .replacingOccurrences(of: "\n", with: " ")
-                if !preview.isEmpty {
-                    subtitle += " · \(notification.title)"
-                    body = String(preview.prefix(180))
+                if summary == nil {
+                    // No timeline: fall back to the comment alone, and skip activity the user caused themselves.
+                    if me.contains(comment.author) { continue }
+                    title = Self.title(for: notification.reason, author: comment.author) ?? title
                 }
-                url = comment.htmlURL ?? url
+                if !me.contains(comment.author) {
+                    let text = comment.body.replacingOccurrences(of: "\r\n", with: " ")
+                        .replacingOccurrences(of: "\n", with: " ")
+                    if !text.isEmpty { preview = "«\(text.prefix(160))»" }
+                    url = comment.htmlURL ?? url
+                }
             }
-            // Party mode only for assignments a bot made; later activity on the PR keeps the "assign" reason.
-            let party = notification.reason == "assign" && !isComment && Preferences.partyMode
-                ? await GitHubService.wasAssignedAutomatically(repo: notification.repo, number: notification.number,
-                                                               login: login)
-                : false
+            if let preview { details.append(preview) }
 
             Notifier.shared.post(
-                id: "\(notification.id)-\(stamp)", title: title, subtitle: subtitle,
-                body: body, url: url, threadID: notification.id,
-                sound: party ? Notifier.assignSound : Notifier.defaultSound
+                id: "\(notification.id)-\(stamp)", title: title,
+                subtitle: "\(notification.repo)#\(notification.number) · \(notification.title)",
+                body: details.isEmpty ? notification.title : details.joined(separator: "\n"),
+                url: url, threadID: notification.id,
+                sound: summary?.botAssigned == true && Preferences.partyMode ? Notifier.assignSound : Notifier.defaultSound
             )
             budget -= 1
         }
